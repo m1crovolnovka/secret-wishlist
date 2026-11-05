@@ -171,7 +171,7 @@ function Person() {
 }
 
 export function Header() {
-  const { data, room, isRevealed, isAdmin, reset } = useStore()
+  const { data, room, isRevealed, isAdmin, canTune, reset } = useStore()
   const go = useGo()
   const location = useLocation()
   const [open, setOpen] = useState(false)
@@ -263,7 +263,7 @@ export function Header() {
             <button type="button" className="menu-link" onClick={onAccount}>
               Кабинет
             </button>
-            {isAdmin && (
+            {canTune && (
               <button type="button" className="menu-link" onClick={() => travel('/admin')}>
                 Настройки
               </button>

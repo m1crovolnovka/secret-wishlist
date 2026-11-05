@@ -81,7 +81,12 @@ export function Home() {
         side={
           <>
             <p className="note aside">Собери это тихо. Кто загадал — не сказано.</p>
-            {budget && <p className="timer-date">сумма подарка {budget}</p>}
+            {budget && (
+              <p className="budget">
+                <span>сумма подарка</span>
+                <b>{budget}</b>
+              </p>
+            )}
             <Timer to={room.giftBy} now={now} />
             <p className="timer-date">подарить до {formatWhen(room.giftBy)}</p>
           </>
@@ -103,11 +108,16 @@ export function Home() {
             {theme.label} · {peopleCount(count)}
           </p>
           <h1>{room.title}</h1>
+          {budget && (
+            <p className="budget">
+              <span>сумма подарка</span>
+              <b>{budget}</b>
+            </p>
+          )}
           <Timer to={drawn ? room.giftBy : room.drawAt} now={now} />
           <p className="timer-date">
             {drawn ? `вручить до ${formatWhen(room.giftBy)}` : `раздача ${formatWhen(room.drawAt)}`}
           </p>
-          {budget && <p className="timer-date">сумма подарка {budget}</p>}
         </div>
         <div className="hero-side">
           <div className="label">
@@ -130,16 +140,21 @@ export function Home() {
                   разыграть сейчас
                 </button>
               )}
-              <p className="demo-hint">Кнопка админа. Тема, срок и сумма подарка — в настройках.</p>
+              <p className="demo-hint">Кнопка админа. Роль, срок и сумма — в настройках.</p>
+              <button className="text-btn" type="button" onClick={() => go('/admin')}>
+                настройки комнаты
+              </button>
+            </>
+          ) : isGlobalAdmin ? (
+            <>
+              <p className="demo-hint">Сейчас ты как участник: вишлисты закрыты. Роль можно сменить в настройках.</p>
               <button className="text-btn" type="button" onClick={() => go('/admin')}>
                 настройки комнаты
               </button>
             </>
           ) : (
             <>
-              <p className="demo-hint">
-                {isGlobalAdmin ? 'В этой комнате ты как участник: настройки скрыты.' : 'Раздачу откроет админ комнаты.'}
-              </p>
+              <p className="demo-hint">Раздачу откроет админ комнаты.</p>
               <button className="text-btn" type="button" onClick={() => go('/rooms')}>
                 другие комнаты
               </button>
@@ -396,7 +411,7 @@ export function Rooms() {
                   {item.budget ? ` · ${money(item.budget, item.currency)}` : ''}
                 </span>
               </button>
-              {isGlobalAdmin && item.presence !== 'guest' && (
+              {isGlobalAdmin && (
                 <button className="text-btn" type="button" onClick={() => focusRoom(item.id, '/admin')}>
                   настройки
                 </button>
@@ -549,7 +564,7 @@ export function NewRoom() {
 }
 
 export function Admin() {
-  const { room, theme, isAdmin, isGlobalAdmin, isRevealed, updateRoom, drawNow, undraw, now } = useStore()
+  const { room, theme, isAdmin, canTune, isRevealed, updateRoom, drawNow, undraw, now } = useStore()
   const go = useGo()
   const [title, setTitle] = useState(room?.title || '')
   useTitle('настройки')
@@ -559,17 +574,12 @@ export function Admin() {
   }, [room?.id])
 
   if (!room) return null
-  if (!isAdmin) {
-    const guest = isGlobalAdmin && room.presence === 'guest'
+  if (!canTune) {
     return (
       <section className="sheet missing">
         <p className="crumb">{room.title}</p>
-        <h1>{guest ? 'Как участник' : 'Не твоя'}</h1>
-        <p className="note">
-          {guest
-            ? 'В этой комнате вкладка админа закрыта. Ты в раздаче наравне с остальными.'
-            : 'Настройки и чужие формы только у админа. Для входа: имя qqq, почта qqq@qqq.'}
-        </p>
+        <h1>Не твоя</h1>
+        <p className="note">Настройки и чужие формы только у админа. Для входа: имя qqq, почта qqq@qqq.</p>
         <button className="text-btn" type="button" onClick={() => go('/')}>
           на главную
         </button>
@@ -578,6 +588,7 @@ export function Admin() {
   }
 
   const count = room.people.length
+  const guest = room.presence === 'guest'
 
   return (
     <section className="sheet admin">
@@ -586,11 +597,39 @@ export function Admin() {
       <div className="admin-intro">
         <p className="crumb">админ · {room.title}</p>
         <h1>Настройки</h1>
-        <p className="note">Срок и сумма видны всем. Чьи формы и сами желания — только здесь и во вкладке вишлистов.</p>
+        <p className="note">
+          {guest
+            ? 'Сейчас ты как участник: вишлисты закрыты. Смени роль ниже, чтобы снова видеть чужие формы.'
+            : 'Срок и сумма видны всем. Чьи формы — во вкладке вишлистов, пока ты не в режиме «как участник».'}
+        </p>
       </div>
       <div className="editor">
         <div>
           <div className="label">
+            <Squiggle />
+            <span>твоя роль</span>
+          </div>
+          <div className="presence">
+            {PRESENCE.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className={room.presence === item.id ? 'on' : ''}
+                onClick={() => updateRoom({ presence: item.id })}
+              >
+                <strong>{item.title}</strong>
+                <span>{item.note}</span>
+              </button>
+            ))}
+          </div>
+          <p className="demo-hint">
+            {guest
+              ? 'Вишлисты скрыты. Раздача и свой список работают как у участника.'
+              : room.presence === 'out'
+                ? 'Ты вне раздачи и не получаешь чужой список.'
+                : 'Ты в раздаче и видишь чужие формы.'}
+          </p>
+          <div className="label space">
             <Squiggle />
             <span>тема</span>
           </div>
@@ -674,17 +713,23 @@ export function Admin() {
             />
           </label>
           <p className="demo-hint">{money(room.budget, room.currency) || 'сумма не задана'}</p>
-          <button className="text-btn" type="button" onClick={() => go('/colors')}>
-            формы участников
-          </button>
-          {isRevealed ? (
-            <button className="text-btn" type="button" onClick={undraw}>
-              закрыть раздачу
-            </button>
+          {isAdmin ? (
+            <>
+              <button className="text-btn" type="button" onClick={() => go('/colors')}>
+                формы участников
+              </button>
+              {isRevealed ? (
+                <button className="text-btn" type="button" onClick={undraw}>
+                  закрыть раздачу
+                </button>
+              ) : (
+                <button className="fill" type="button" onClick={drawNow}>
+                  разыграть сейчас
+                </button>
+              )}
+            </>
           ) : (
-            <button className="fill" type="button" onClick={drawNow}>
-              разыграть сейчас
-            </button>
+            <p className="demo-hint">Раздача и формы снова откроются, если выбрать «Админ участвует» или «Админ не участвует».</p>
           )}
         </form>
       </div>

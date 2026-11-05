@@ -8,7 +8,7 @@ export const ADMIN = { name: 'qqq', email: 'qqq@qqq' }
 export const PRESENCE = [
   { id: 'in', title: 'Админ участвует', note: 'Ты в раздаче и ведёшь комнату.' },
   { id: 'out', title: 'Админ не участвует', note: 'Только ведёшь. Свой список тебе не выпадет.' },
-  { id: 'guest', title: 'Админ как участник', note: 'Ты в раздаче, вкладка админа закрыта.' },
+  { id: 'guest', title: 'Админ как участник', note: 'Ты в раздаче, вишлисты скрыты. Роль можно сменить.' },
 ]
 
 export const CURRENCIES = [
@@ -32,6 +32,14 @@ export function isAdminUser(user) {
 
 export function canManageRoom(user, room) {
   return Boolean(room && isAdminUser(user) && room.presence !== 'guest')
+}
+
+export function canTuneRoom(user, room) {
+  return Boolean(room && isAdminUser(user))
+}
+
+export function readPresence(value) {
+  return PRESENCE.some((item) => item.id === value) ? value : 'in'
 }
 
 export function roomMark(room, user) {
@@ -362,6 +370,42 @@ export function ensureSeat(room, user) {
   let next = { ...room, people: [...room.people, person] }
   if (isDrawnRoom(next)) next = assignMissing(next)
   return next
+}
+
+export function withPresence(room, presence) {
+  const next = readPresence(presence)
+  if (room.presence === next) return room
+  let people = room.people.slice()
+  const index = people.findIndex((person) => person.email === ADMIN.email)
+
+  if (next === 'out') {
+    if (index >= 0) {
+      const removed = people[index]
+      people = people.filter((_, i) => i !== index).map((person) => ({
+        ...person,
+        assignedPid: person.assignedPid === removed.pid ? null : person.assignedPid,
+      }))
+      if (isDrawnRoom(room) && people.length > 1) {
+        people = assignMissing({ ...room, people }).people
+      }
+    }
+  } else if (index < 0) {
+    people = [
+      ...people,
+      blankPerson({
+        pid: `host-${room.id}`,
+        name: ADMIN.name,
+        email: ADMIN.email,
+        demo: false,
+        colorId: colorAt(room.theme, people.length).id,
+      }),
+    ]
+    if (isDrawnRoom(room) && people.length > 1) {
+      people = assignMissing({ ...room, people }).people
+    }
+  }
+
+  return { ...room, presence: next, people }
 }
 
 export function drawRoom(room) {

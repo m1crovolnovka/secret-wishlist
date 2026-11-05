@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   assignedList,
   canManageRoom,
+  canTuneRoom,
   closeDraw,
   colorById,
   composeRoom,
@@ -18,6 +19,7 @@ import {
   themeToken,
   uid,
   withCount,
+  withPresence,
   withTheme,
 } from './data'
 
@@ -134,6 +136,7 @@ export function StoreProvider({ children }) {
   const isRevealed = Boolean(room && revealed[room.id] && assignment)
   const isGlobalAdmin = isAdminUser(data.user)
   const isAdmin = canManageRoom(data.user, room)
+  const canTune = canTuneRoom(data.user, room)
 
   useEffect(() => {
     const current = dataRef.current.rooms.find((item) => item.id === dataRef.current.roomId) || dataRef.current.rooms[0]
@@ -294,14 +297,15 @@ export function StoreProvider({ children }) {
   const updateRoom = useCallback((patch) => {
     const id = dataRef.current.roomId
     const current = dataRef.current.rooms.find((item) => item.id === id)
-    if (!canManageRoom(dataRef.current.user, current)) return
+    if (!canTuneRoom(dataRef.current.user, current)) return
     setData((prev) => ({
       ...prev,
       rooms: prev.rooms.map((item) => {
         if (item.id !== id) return item
         let next = item
-        if (patch.theme && patch.theme !== item.theme) next = withTheme(next, patch.theme)
-        if (typeof patch.count === 'number' && !isDrawnRoom(item)) next = withCount(next, patch.count)
+        if (typeof patch.presence === 'string') next = withPresence(next, patch.presence)
+        if (patch.theme && patch.theme !== next.theme) next = withTheme(next, patch.theme)
+        if (typeof patch.count === 'number' && !isDrawnRoom(next)) next = withCount(next, patch.count)
         if (typeof patch.title === 'string') next = { ...next, title: patch.title }
         if (typeof patch.budget === 'number') next = { ...next, budget: readBudget(patch.budget) }
         if (typeof patch.currency === 'string') next = { ...next, currency: readCurrency(patch.currency) }
@@ -394,6 +398,7 @@ export function StoreProvider({ children }) {
       isRevealed,
       isAdmin,
       isGlobalAdmin,
+      canTune,
       seat,
       transition,
       focusRoom,
@@ -423,6 +428,7 @@ export function StoreProvider({ children }) {
       isRevealed,
       isAdmin,
       isGlobalAdmin,
+      canTune,
       seat,
       transition,
       focusRoom,
