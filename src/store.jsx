@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useNavigate } from 'react-router-dom'
 import { api, setToken } from './api'
 import { themeOf, themeToken } from './data'
+import { compressImageFile } from './imageCompress'
 import { getInitData, getStartParam, haptic, initTelegram } from './telegram'
 
 const Ctx = createContext(null)
@@ -26,6 +27,7 @@ function mapRoomSummary(summary, detail = null) {
     numericId: summary.id,
     code: summary.code,
     title: summary.title,
+    inviteLink: summary.inviteLink || '',
     theme: summary.theme,
     phase: summary.phase,
     adminMode: summary.adminMode,
@@ -66,6 +68,7 @@ export function StoreProvider({ children }) {
   const [now, setNow] = useState(() => Date.now())
   const [fx, setFx] = useState(null)
   const [saveError, setSaveError] = useState(false)
+  const [actionError, setActionError] = useState('')
   const mid = useRef(null)
   const roomIdRef = useRef(roomId)
   roomIdRef.current = roomId
@@ -311,14 +314,13 @@ export function StoreProvider({ children }) {
   const addGift = useCallback(
     async (gift) => {
       if (!room?.numericId) return
-      let imageId = null
       if (gift.file) {
-        const uploaded = await api.uploadImage(room.numericId, gift.file)
-        imageId = uploaded.id
+        const compressed = await compressImageFile(gift.file)
+        const uploaded = await api.uploadImage(room.numericId, compressed)
         await api.addWishlistItem(room.numericId, {
           type: 'IMAGE',
           title: gift.title,
-          imageId,
+          imageId: uploaded.id,
           url: gift.url || null,
         })
       } else if (gift.url) {
@@ -331,7 +333,7 @@ export function StoreProvider({ children }) {
         await api.addWishlistItem(room.numericId, {
           type: 'TEXT',
           title: gift.title,
-          body: gift.note || '',
+          body: '',
         })
       }
       haptic('light')
@@ -352,16 +354,36 @@ export function StoreProvider({ children }) {
   )
 
   const drawNow = useCallback(async () => {
-    if (!room?.numericId || !room.hasAdminTab) return
-    await api.adminDraw(room.numericId, { redraw: false })
-    haptic('success')
-    await loadRooms(room.numericId)
+    if (!room?.numericId) return
+    if (room.myRole !== 'OWNER') {
+      setActionError('Раздачу может запустить только владелец комнаты')
+      return
+    }
+    setActionError('')
+    try {
+      await api.adminDraw(room.numericId, { redraw: Boolean(room.forceDrawn) })
+      haptic('success')
+      await loadRooms(room.numericId)
+    } catch (err) {
+      setActionError(err.message || 'Не удалось разыграть')
+    }
   }, [room, loadRooms])
 
   const undraw = useCallback(async () => {
-    if (!room?.numericId || !room.hasAdminTab) return
-    await api.adminDraw(room.numericId, { redraw: true })
-    await loadRooms(room.numericId)
+    if (!room?.numericId) return
+    if (room.myRole !== 'OWNER') {
+      setActionError('Только владелец комнаты')
+      return
+    }
+    setActionError('')
+    try {
+      // redraw=true clears assignments and runs a new draw
+      await api.adminDraw(room.numericId, { redraw: true })
+      haptic('success')
+      await loadRooms(room.numericId)
+    } catch (err) {
+      setActionError(err.message || 'Не удалось перезапустить раздачу')
+    }
   }, [room, loadRooms])
 
   const requestChange = useCallback(
@@ -395,6 +417,50 @@ export function StoreProvider({ children }) {
       await api.kick(room.numericId, memberId)
       const people = await api.adminParticipants(room.numericId)
       setParticipants(people.participants || [])
+    },
+    [room],
+  )
+
+  const loadMemberWishlist = useCallback(
+    async (memberId) => {
+      if (!room?.numericId) return { items: [], canEdit: false }
+      return api.adminWishlist(room.numericId, memberId)
+    },
+    [room],
+  )
+
+  const adminAddMemberGift = useCallback(
+    async (memberId, gift) => {
+      if (!room?.numericId) return
+      if (gift.file) {
+        const compressed = await compressImageFile(gift.file)
+        const uploaded = await api.uploadImage(room.numericId, compressed)
+        await api.adminAddWishlistItem(room.numericId, memberId, {
+          type: 'IMAGE',
+          title: gift.title,
+          imageId: uploaded.id,
+          url: gift.url || null,
+        })
+      } else if (gift.url) {
+        await api.adminAddWishlistItem(room.numericId, memberId, {
+          type: 'LINK',
+          title: gift.title,
+          url: gift.url,
+        })
+      } else {
+        await api.adminAddWishlistItem(room.numericId, memberId, {
+          type: 'TEXT',
+          title: gift.title,
+        })
+      }
+    },
+    [room],
+  )
+
+  const adminRemoveMemberGift = useCallback(
+    async (memberId, itemId) => {
+      if (!room?.numericId) return
+      await api.adminRemoveWishlistItem(room.numericId, memberId, itemId)
     },
     [room],
   )
@@ -457,6 +523,8 @@ export function StoreProvider({ children }) {
       theme,
       fx,
       saveError,
+      actionError,
+      setActionError,
       mosaic: [],
       assignment: assignmentView,
       isRevealed,
@@ -487,6 +555,9 @@ export function StoreProvider({ children }) {
       requestChange,
       decideChange,
       kickMember,
+      loadMemberWishlist,
+      adminAddMemberGift,
+      adminRemoveMemberGift,
       reload: () => loadRooms(room?.numericId),
     }),
     [
@@ -499,6 +570,7 @@ export function StoreProvider({ children }) {
       theme,
       fx,
       saveError,
+      actionError,
       assignmentView,
       isRevealed,
       isAdmin,
@@ -523,6 +595,9 @@ export function StoreProvider({ children }) {
       requestChange,
       decideChange,
       kickMember,
+      loadMemberWishlist,
+      adminAddMemberGift,
+      adminRemoveMemberGift,
       loadRooms,
     ],
   )
