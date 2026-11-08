@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { api, getToken, setToken } from './api'
+import { api, setToken } from './api'
 import { themeOf, themeToken } from './data'
 import { getInitData, getStartParam, haptic, initTelegram } from './telegram'
 
@@ -186,20 +186,12 @@ export function StoreProvider({ children }) {
           }
           return
         }
-        if (!getToken()) {
-          const auth = await api.login(initData)
-          setToken(auth.accessToken)
-          setUser(auth.user)
-        } else {
-          try {
-            const me = await api.me()
-            setUser(me)
-          } catch {
-            const auth = await api.login(initData)
-            setToken(auth.accessToken)
-            setUser(auth.user)
-          }
-        }
+        // Always refresh JWT from fresh initData — stale tokens on mobile WebViews
+        // used to produce «Сессия недействительна» when sent with /api/auth.
+        setToken('')
+        const auth = await api.login(initData)
+        setToken(auth.accessToken)
+        setUser(auth.user)
 
         const start = getStartParam()
         if (start.startsWith('room_')) {
@@ -425,6 +417,7 @@ export function StoreProvider({ children }) {
         title: item.title,
         url: item.url || '',
         photo: item.imageUrl || '',
+        imageId: item.imageId || null,
       })),
     }
   }, [form, wishlist, room, user])
@@ -439,6 +432,7 @@ export function StoreProvider({ children }) {
         title: item.title,
         url: item.url || '',
         photo: item.imageUrl || '',
+        imageId: item.imageId || null,
       })),
       budgetMin: assignment.budgetMin,
       budgetMax: assignment.budgetMax,
