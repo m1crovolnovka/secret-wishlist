@@ -81,6 +81,15 @@ export const api = {
   adminForm: (roomId, memberId) => request(`/api/admin/rooms/${roomId}/members/${memberId}/form`),
   adminWishlist: (roomId, memberId) =>
     request(`/api/admin/rooms/${roomId}/members/${memberId}/wishlist`),
+  adminAddWishlistItem: (roomId, memberId, body) =>
+    request(`/api/admin/rooms/${roomId}/members/${memberId}/wishlist/items`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  adminRemoveWishlistItem: (roomId, memberId, itemId) =>
+    request(`/api/admin/rooms/${roomId}/members/${memberId}/wishlist/items/${itemId}`, {
+      method: 'DELETE',
+    }),
   adminChangeRequests: (id) => request(`/api/admin/rooms/${id}/change-requests`),
   decideChangeRequest: (roomId, requestId, body) =>
     request(`/api/admin/rooms/${roomId}/change-requests/${requestId}/decide`, {

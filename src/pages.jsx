@@ -15,7 +15,6 @@ import {
   DEFAULT_CURRENCY,
   MIN_PEOPLE,
   PRESENCE,
-  SAMPLES,
   colorById,
   currencyOf,
   formatWhen,
@@ -41,10 +40,6 @@ function RuDateTimeInput({ value, onChange }) {
   )
 }
 
-function colorLabel(themeId, colorCode) {
-  return colorById(themeId, colorCode)?.name || colorCode || '—'
-}
-
 function normalizeUrl(raw) {
   const value = raw.trim()
   if (!value) return ''
@@ -52,32 +47,20 @@ function normalizeUrl(raw) {
   return `https://${value}`
 }
 
-function fileToDataUrl(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(reader.result)
-    reader.onerror = () => reject(reader.error)
-    reader.readAsDataURL(file)
-  }).then(async (dataUrl) => {
-    const img = await new Promise((resolve) => {
-      const image = new Image()
-      image.onload = () => resolve(image)
-      image.onerror = () => resolve(null)
-      image.src = dataUrl
-    })
-    if (!img) return dataUrl
-    const max = 800
-    const scale = Math.min(1, max / Math.max(img.width, img.height))
-    const canvas = document.createElement('canvas')
-    canvas.width = Math.round(img.width * scale)
-    canvas.height = Math.round(img.height * scale)
-    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height)
-    return canvas.toDataURL('image/jpeg', 0.72)
-  })
-}
-
 export function Home() {
-  const { data, room, theme, now, isRevealed, isAdmin, isGlobalAdmin, assignment, drawNow, undraw } = useStore()
+  const {
+    data,
+    room,
+    theme,
+    now,
+    isRevealed,
+    isAdmin,
+    isGlobalAdmin,
+    assignment,
+    drawNow,
+    undraw,
+    actionError,
+  } = useStore()
   const go = useGo()
   useTitle(isRevealed ? 'тебе выпало' : room?.title || 'Тайно')
 
@@ -87,13 +70,13 @@ export function Home() {
         <div className="hero-copy">
           <p className="crumb">Тайно</p>
           <h1>Нет активной комнаты</h1>
-          <p className="note">Создай комнату или войди по коду — и раздача пойдёт сама.</p>
+          <p className="note">Создай комнату для друзей или зайди по приглашению — дальше раздача идёт сама.</p>
           <div className="row-actions">
             <button className="fill" type="button" onClick={() => go('/rooms/new')}>
-              создать комнату
+              Создать комнату
             </button>
             <button className="text-btn" type="button" onClick={() => go('/enter')}>
-              есть код
+              Войти по коду
             </button>
           </div>
         </div>
@@ -155,45 +138,45 @@ export function Home() {
         <div className="hero-side">
           <div className="label">
             <Squiggle color={theme.ink} />
-            <span>как это</span>
+            <span>что дальше</span>
           </div>
           <p className="note">
-            В комнате {peopleCount(count)}. До срока списки закрыты. В раздачу откроется один чужой список, без имени.
+            {drawn
+              ? 'Раздача уже прошла — открой свой список желаний получателя.'
+              : `Составь вишлист. В комнате ${peopleCount(count)}. В срок откроется один чужой список — без имени.`}
             {hosting ? ' Ты ведёшь комнату и в раздаче не участвуешь.' : ''}
-            {drawn && !data.user ? ' Раздача уже была — войди, чтобы увидеть свой список.' : ''}
           </p>
           <div className="row-actions">
             <button className="fill" type="button" onClick={() => go('/cabinet')}>
-              мой вишлист
+              {drawn ? 'Открыть кабинет' : 'Составить вишлист'}
             </button>
-            {isAdmin ? (
+            {isGlobalAdmin ? (
               drawn ? (
-                <button className="text-btn" type="button" onClick={undraw}>
-                  закрыть раздачу
+                <button className="text-btn" type="button" onClick={() => undraw()}>
+                  Перерозыгрыш
                 </button>
               ) : (
-                <button className="text-btn" type="button" onClick={drawNow}>
-                  разыграть сейчас
+                <button className="text-btn" type="button" onClick={() => drawNow()}>
+                  Разыграть сейчас
                 </button>
               )
             ) : null}
           </div>
-          {isAdmin ? (
+          {actionError && <p className="err">{actionError}</p>}
+          {isGlobalAdmin ? (
             <div className="row-actions">
               <button className="text-btn" type="button" onClick={() => go('/admin')}>
-                настройки комнаты
+                Настройки и приглашение
               </button>
-              <button className="text-btn" type="button" onClick={() => go('/colors')}>
-                формы участников
-              </button>
+              {isAdmin ? (
+                <button className="text-btn" type="button" onClick={() => go('/colors')}>
+                  Участники и вишлисты
+                </button>
+              ) : null}
             </div>
-          ) : isGlobalAdmin ? (
-            <button className="text-btn" type="button" onClick={() => go('/admin')}>
-              настройки комнаты
-            </button>
           ) : (
             <button className="text-btn" type="button" onClick={() => go('/rooms')}>
-              другие комнаты
+              Мои комнаты
             </button>
           )}
         </div>
@@ -231,52 +214,113 @@ export function Home() {
 }
 
 export function Colors() {
-  const { room, theme, isAdmin, participants, kickMember, changeRequests, decideChange } = useStore()
+  const {
+    room,
+    theme,
+    isAdmin,
+    participants,
+    kickMember,
+    changeRequests,
+    decideChange,
+    loadMemberWishlist,
+    adminAddMemberGift,
+    adminRemoveMemberGift,
+  } = useStore()
   const [pid, setPid] = useState('')
-  useTitle('вишлисты')
+  const [memberWish, setMemberWish] = useState({ items: [] })
+  const [wishTitle, setWishTitle] = useState('')
+  const [wishUrl, setWishUrl] = useState('')
+  const [wishFile, setWishFile] = useState(null)
+  const [wishErr, setWishErr] = useState('')
+  const wishFileRef = useRef(null)
+  useTitle('участники')
 
   useEffect(() => {
     setPid('')
+    setMemberWish({ items: [] })
   }, [room?.id])
+
+  useEffect(() => {
+    if (!pid) {
+      setMemberWish({ items: [] })
+      return
+    }
+    let cancelled = false
+    loadMemberWishlist(pid).then((data) => {
+      if (!cancelled) setMemberWish(data || { items: [] })
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [pid, loadMemberWishlist])
 
   if (!room) return null
   if (!isAdmin) return <Navigate to="/" replace />
 
   const person = participants.find((item) => String(item.memberId) === String(pid)) || null
+  const personColor = person ? colorById(room.theme, person.colorCode) : null
+
+  async function submitMemberGift(event) {
+    event.preventDefault()
+    if (!person || !wishTitle.trim()) {
+      setWishErr('нужно название')
+      return
+    }
+    try {
+      await adminAddMemberGift(person.memberId, {
+        title: wishTitle.trim(),
+        url: normalizeUrl(wishUrl),
+        file: wishFile,
+      })
+      setWishTitle('')
+      setWishUrl('')
+      setWishFile(null)
+      setWishErr('')
+      if (wishFileRef.current) wishFileRef.current.value = ''
+      setMemberWish((await loadMemberWishlist(person.memberId)) || { items: [] })
+    } catch (e) {
+      setWishErr(e.message || 'не удалось добавить')
+    }
+  }
 
   return (
     <>
       <section className="page-intro">
         <Weather type={theme.particle} color={theme.ink} />
         <div className="blob blob-a" />
-        <p className="crumb">{room.title} · только админ</p>
+        <p className="crumb">{room.title} · админ</p>
         <h1>Участники</h1>
         <p className="note">
-          {peopleCount(participants.length)}. Цвета видны только тебе. Участникам имя и цвет не показываются.
+          {peopleCount(participants.length)}. Цвет видишь только ты. Можно открыть и поправить чужой вишлист.
         </p>
       </section>
       <section className="sheet forms">
         <ul className="roster">
-          {participants.map((item) => (
-            <li key={item.memberId}>
-              <button
-                type="button"
-                className={String(item.memberId) === String(pid) ? 'person on' : 'person'}
-                onClick={() => setPid(item.memberId === pid ? '' : item.memberId)}
-              >
-                <span
-                  className="swatch"
-                  style={{ background: colorById(room.theme, item.colorCode)?.base || '#999' }}
-                />
-                <span>
-                  <b>{item.displayName}</b>
-                  <small>
-                    {item.username ? `@${item.username}` : item.firstName} · {colorLabel(room.theme, item.colorCode)}
-                  </small>
-                </span>
-              </button>
-            </li>
-          ))}
+          {participants.map((item) => {
+            const color = colorById(room.theme, item.colorCode)
+            return (
+              <li key={item.memberId}>
+                <button
+                  type="button"
+                  className={String(item.memberId) === String(pid) ? 'on' : ''}
+                  onClick={() => setPid(String(item.memberId) === String(pid) ? '' : item.memberId)}
+                >
+                  <i style={{ background: color?.base || '#999' }} aria-hidden="true" />
+                  <span className="who">
+                    <b>{item.displayName}</b>
+                    <span>
+                      {color?.name || 'без цвета'}
+                      {item.username ? ` · @${item.username}` : ''}
+                      {item.participates ? '' : ' · вне раздачи'}
+                    </span>
+                  </span>
+                  <em style={{ background: color?.base || '#999', color: color?.ink || '#fff' }}>
+                    {color?.name || '—'}
+                  </em>
+                </button>
+              </li>
+            )
+          })}
         </ul>
         {person && (
           <div className="person-editor">
@@ -284,42 +328,108 @@ export function Colors() {
               <Squiggle />
               <span>участник · {person.displayName}</span>
             </div>
-            <p className="note">
-              Цвет: {colorLabel(room.theme, person.colorCode)}. Участие: {person.participates ? 'да' : 'нет'}.
-            </p>
+            <div className="color-chip" style={{ background: personColor?.base || '#999', color: personColor?.ink || '#fff' }}>
+              {personColor?.name || 'без цвета'}
+            </div>
+            <p className="note">Участие: {person.participates ? 'да' : 'нет'}.</p>
             {person.role !== 'OWNER' && !room.forceDrawn && (
               <button className="text-btn" type="button" onClick={() => kickMember(person.memberId)}>
-                исключить
+                исключить из комнаты
               </button>
             )}
+
+            <div className="label space">
+              <Squiggle />
+              <span>вишлист участника</span>
+            </div>
+            {(memberWish.items || []).length === 0 ? (
+              <p className="note">Список пока пуст.</p>
+            ) : (
+              <ul className="mine admin-wish">
+                {(memberWish.items || []).map((gift) => (
+                  <li key={gift.id}>
+                    <div className="frame">
+                      <Photo src={gift.imageUrl} alt={gift.title} />
+                    </div>
+                    <div>
+                      <h3>{gift.title}</h3>
+                      <div className="item-actions">
+                        {gift.url ? (
+                          <a className="buy" href={gift.url} target="_blank" rel="noreferrer">
+                            ссылка
+                          </a>
+                        ) : (
+                          <span className="demo-hint">без ссылки</span>
+                        )}
+                        <button
+                          className="text-btn"
+                          type="button"
+                          onClick={async () => {
+                            await adminRemoveMemberGift(person.memberId, gift.id)
+                            setMemberWish((await loadMemberWishlist(person.memberId)) || { items: [] })
+                          }}
+                        >
+                          убрать
+                        </button>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <form className="stack-form" onSubmit={submitMemberGift}>
+              <label className="line">
+                <span>добавить желание</span>
+                <input value={wishTitle} onChange={(e) => setWishTitle(e.target.value)} />
+              </label>
+              <label className="line">
+                <span>ссылка</span>
+                <input value={wishUrl} onChange={(e) => setWishUrl(e.target.value)} placeholder="https://" />
+              </label>
+              <div className="photo-row">
+                <input
+                  ref={wishFileRef}
+                  type="file"
+                  accept="image/*"
+                  hidden
+                  onChange={(e) => setWishFile(e.target.files?.[0] || null)}
+                />
+                <button className="text-btn" type="button" onClick={() => wishFileRef.current?.click()}>
+                  {wishFile?.name || 'фото'}
+                </button>
+              </div>
+              {wishErr && <p className="err">{wishErr}</p>}
+              <button className="fill" type="submit">
+                сохранить в вишлист
+              </button>
+            </form>
           </div>
         )}
-        <div className="label">
+        <div className="label space">
           <Squiggle />
           <span>запросы на изменение</span>
         </div>
         {changeRequests.length === 0 ? (
           <p className="note">Очередь пуста.</p>
         ) : (
-          <ul className="mine">
+          <ul className="change-queue">
             {changeRequests.map((req) => (
               <li key={req.id}>
-                <div>
-                  <h3>{req.displayName}</h3>
-                  <p className="note">{req.reason}</p>
-                  <p className="demo-hint">{req.requestedChanges}</p>
-                  <p className="demo-hint">{req.status}</p>
-                  {req.status === 'PENDING' && (
-                    <div className="item-actions">
-                      <button className="text-btn" type="button" onClick={() => decideChange(req.id, true)}>
-                        принять
-                      </button>
-                      <button className="text-btn" type="button" onClick={() => decideChange(req.id, false)}>
-                        отклонить
-                      </button>
-                    </div>
-                  )}
-                </div>
+                <h3>{req.displayName}</h3>
+                <p className="note">{req.reason}</p>
+                <p className="demo-hint">{req.requestedChanges}</p>
+                <p className="demo-hint">{req.status}</p>
+                {req.status === 'PENDING' && (
+                  <div className="item-actions">
+                    <button className="text-btn" type="button" onClick={() => decideChange(req.id, true)}>
+                      принять
+                    </button>
+                    <button className="text-btn" type="button" onClick={() => decideChange(req.id, false)}>
+                      отклонить
+                    </button>
+                  </div>
+                )}
               </li>
             ))}
           </ul>
@@ -364,10 +474,10 @@ export function Rooms() {
         <p className="note">Учёба, работа, свой круг — у каждого своя комната, свой срок и своя тема.</p>
         <div className="row-actions room-new">
           <button className="fill" type="button" onClick={() => go('/rooms/new')}>
-            новая комната
+            Создать комнату
           </button>
           <button className="text-btn" type="button" onClick={() => go('/enter')}>
-            войти по коду
+            Войти по коду
           </button>
         </div>
       </section>
@@ -397,7 +507,7 @@ export function Rooms() {
               </button>
               {item.canTune && (
                 <button className="text-btn" type="button" onClick={() => focusRoom(item.id, '/admin')}>
-                  настройки
+                  Настройки
                 </button>
               )}
             </article>
@@ -536,10 +646,10 @@ export function NewRoom() {
         </label>
         {err && <p className="err">{err}</p>}
         <button className="fill" type="submit" disabled={busy}>
-          {busy ? 'создаю…' : 'создать комнату'}
+          {busy ? 'Создаю…' : 'Создать комнату'}
         </button>
         <button className="text-btn" type="button" onClick={() => go('/rooms')}>
-          к комнатам
+          К комнатам
         </button>
       </form>
     </section>
@@ -547,9 +657,22 @@ export function NewRoom() {
 }
 
 export function Admin() {
-  const { room, theme, isAdmin, canTune, isRevealed, updateRoom, drawNow, undraw, now } = useStore()
+  const {
+    room,
+    theme,
+    isAdmin,
+    canTune,
+    isGlobalAdmin,
+    isRevealed,
+    updateRoom,
+    drawNow,
+    undraw,
+    actionError,
+  } = useStore()
   const go = useGo()
   const [title, setTitle] = useState(room?.title || '')
+  const [inviteHint, setInviteHint] = useState('')
+  const [drawBusy, setDrawBusy] = useState(false)
   useTitle('настройки')
 
   useEffect(() => {
@@ -564,7 +687,7 @@ export function Admin() {
         <h1>Не твоя</h1>
         <p className="note">Настройки только у владельца комнаты.</p>
         <button className="text-btn" type="button" onClick={() => go('/')}>
-          на главную
+          На главную
         </button>
       </section>
     )
@@ -572,6 +695,27 @@ export function Admin() {
 
   const count = room.memberCount || 0
   const guest = room.presence === 'guest'
+  const invite = room.inviteLink || ''
+
+  async function copyInvite() {
+    const text = invite || `Код комнаты: ${room.code}`
+    try {
+      await navigator.clipboard.writeText(text)
+      setInviteHint(invite ? 'Ссылка скопирована' : 'Код скопирован')
+    } catch {
+      setInviteHint(text)
+    }
+  }
+
+  async function onDraw() {
+    setDrawBusy(true)
+    try {
+      if (isRevealed) await undraw()
+      else await drawNow()
+    } finally {
+      setDrawBusy(false)
+    }
+  }
 
   return (
     <section className="sheet admin">
@@ -581,13 +725,36 @@ export function Admin() {
         <p className="crumb">админ · {room.title}</p>
         <h1>Настройки</h1>
         <p className="note">
-          {guest
-            ? 'Сейчас ты как участник: вишлисты закрыты. Смени роль ниже, чтобы снова видеть чужие формы.'
-            : 'Срок и сумма видны всем. Чьи формы — во вкладке вишлистов, пока ты не в режиме «как участник».'}
+          Пригласи друзей ссылкой, настрой срок и сумму. Участников и их вишлисты смотри отдельно.
         </p>
       </div>
+
+      <div className="invite-box">
+        <div className="label">
+          <Squiggle />
+          <span>приглашение</span>
+        </div>
+        <p className="note">
+          Ссылка открывает бота и сразу ведёт в Mini App этой комнаты. Код: <b>{room.code}</b>
+        </p>
+        {invite ? <p className="invite-link">{invite}</p> : (
+          <p className="demo-hint">Ссылка появится, когда на сервере задан TELEGRAM_BOT_USERNAME. Пока делитесь кодом.</p>
+        )}
+        <div className="row-actions">
+          <button className="fill" type="button" onClick={copyInvite}>
+            {invite ? 'Скопировать ссылку' : 'Скопировать код'}
+          </button>
+          {isAdmin && (
+            <button className="text-btn" type="button" onClick={() => go('/colors')}>
+              Участники и вишлисты
+            </button>
+          )}
+        </div>
+        {inviteHint && <p className="demo-hint">{inviteHint}</p>}
+      </div>
+
       <div className="editor">
-        <div>
+        <div className="editor-col">
           <div className="label">
             <Squiggle />
             <span>твоя роль</span>
@@ -607,10 +774,10 @@ export function Admin() {
           </div>
           <p className="demo-hint">
             {guest
-              ? 'Вишлисты скрыты. Раздача и свой список работают как у участника.'
+              ? 'Режим «как участник»: чужие вишлисты скрыты. Раздачу всё равно можно запустить.'
               : room.presence === 'out'
                 ? 'Ты вне раздачи и не получаешь чужой список.'
-                : 'Ты в раздаче и видишь чужие формы.'}
+                : 'Ты в раздаче и видишь участников.'}
           </p>
           <div className="label space">
             <Squiggle />
@@ -621,12 +788,12 @@ export function Admin() {
             <Squiggle />
             <span>участники</span>
           </div>
-          <p className="note">{peopleCount(count)} · код комнаты {room.code}</p>
+          <p className="note">{peopleCount(count)} · код {room.code}</p>
           <p className="demo-hint">
-            {isRevealed ? 'После раздачи состав зафиксирован.' : `Для авто-раздачи нужно минимум ${MIN_PEOPLE}.`}
+            {isRevealed ? 'После раздачи состав зафиксирован.' : `Для раздачи нужно минимум ${MIN_PEOPLE} участников.`}
           </p>
         </div>
-        <form onSubmit={(event) => event.preventDefault()}>
+        <div className="editor-col">
           <label className="line">
             <span>название</span>
             <input
@@ -688,25 +855,15 @@ export function Admin() {
             />
           </label>
           <p className="demo-hint">{money(room.budget, room.currency) || 'сумма не задана'}</p>
-          {isAdmin ? (
+          {isGlobalAdmin && (
             <div className="row-actions">
-              <button className="text-btn" type="button" onClick={() => go('/colors')}>
-                формы участников
+              <button className="fill" type="button" disabled={drawBusy} onClick={onDraw}>
+                {drawBusy ? 'Разыгрываю…' : isRevealed ? 'Перерозыгрыш' : 'Разыграть сейчас'}
               </button>
-              {isRevealed ? (
-                <button className="text-btn" type="button" onClick={undraw}>
-                  закрыть раздачу
-                </button>
-              ) : (
-                <button className="fill" type="button" onClick={drawNow}>
-                  разыграть сейчас
-                </button>
-              )}
             </div>
-          ) : (
-            <p className="demo-hint">Раздача и формы снова откроются, если выбрать «Админ участвует» или «Админ не участвует».</p>
           )}
-        </form>
+          {actionError && <p className="err">{actionError}</p>}
+        </div>
       </div>
     </section>
   )
@@ -743,12 +900,12 @@ export function Enter() {
       <div className="blob blob-a" />
       <div className="enter-copy">
         <p className="crumb">приглашение</p>
-        <h1>Код комнаты</h1>
-        <p className="note">Вход через Telegram Mini App. Код — из ссылки бота или от админа.</p>
+        <h1>Войти в комнату</h1>
+        <p className="note">Вставь код из ссылки бота или сообщения админа — откроется эта комната.</p>
       </div>
       <form className="enter-form" onSubmit={submit}>
         <label className="line">
-          <span>код</span>
+          <span>код комнаты</span>
           <input
             value={code}
             onChange={(event) => setCode(event.target.value.toUpperCase())}
@@ -758,7 +915,7 @@ export function Enter() {
         </label>
         {err && <p className="err">{err}</p>}
         <button className="fill" type="submit" disabled={busy}>
-          {busy ? 'вхожу…' : 'войти'}
+          {busy ? 'Вхожу…' : 'Войти'}
         </button>
       </form>
     </section>
@@ -773,7 +930,6 @@ export function Cabinet() {
     seat,
     isGlobalAdmin,
     focusRoom,
-    setNote,
     addGift,
     removeGift,
     logout,
@@ -788,22 +944,23 @@ export function Cabinet() {
   const [file, setFile] = useState(null)
   const [fileName, setFileName] = useState('')
   const [err, setErr] = useState('')
+  const [busy, setBusy] = useState(false)
   const [changeReason, setChangeReason] = useState('')
   const [changeWhat, setChangeWhat] = useState('')
-  useTitle('кабинет')
+  useTitle('вишлист')
 
   if (!data.user) return <Navigate to="/enter" replace />
   if (!room) {
     return (
       <section className="sheet missing">
-        <h1>Кабинет</h1>
-        <p className="note">Сначала создай комнату или войди по коду — тогда появится вишлист.</p>
+        <h1>Вишлист</h1>
+        <p className="note">Сначала создай комнату или войди по приглашению — тогда появится список желаний.</p>
         <div className="row-actions">
           <button className="fill" type="button" onClick={() => go('/rooms/new')}>
-            создать комнату
+            Создать комнату
           </button>
           <button className="text-btn" type="button" onClick={() => go('/enter')}>
-            есть код
+            Войти по коду
           </button>
         </div>
       </section>
@@ -831,16 +988,19 @@ export function Cabinet() {
       setErr('хватит двенадцати желаний')
       return
     }
+    setBusy(true)
+    setErr('')
     try {
       await addGift({ title: title.trim(), url: normalizeUrl(url), file })
       setTitle('')
       setUrl('')
       setFile(null)
       setFileName('')
-      setErr('')
       if (fileRef.current) fileRef.current.value = ''
     } catch (e) {
       setErr(e.message || 'не удалось добавить')
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -863,18 +1023,18 @@ export function Cabinet() {
     <section className="sheet cabinet">
       <div className="cab-head">
         <div>
-          <p className="crumb">личный кабинет · {room.title}</p>
+          <p className="crumb">вишлист · {room.title}</p>
           <h1>{displayName}</h1>
           <p className="note">{data.user.username ? `@${data.user.username}` : 'без username'}</p>
           <div className="cab-actions">
             <button className="text-btn" type="button" onClick={logout}>
-              выйти
+              Выйти
             </button>
             <button className="text-btn" type="button" onClick={() => go('/rooms')}>
-              все комнаты
+              Мои комнаты
             </button>
             <button className="text-btn" type="button" onClick={() => go('/enter')}>
-              код комнаты
+              Другой код
             </button>
           </div>
         </div>
@@ -882,7 +1042,7 @@ export function Cabinet() {
 
       <div className="label">
         <Squiggle />
-        <span>комната для списка</span>
+        <span>комната</span>
       </div>
       <div className="room-pills">
         {rooms.map((item) => (
@@ -898,48 +1058,35 @@ export function Cabinet() {
       </div>
 
       {hosting ? (
-        <p className="note">В этой комнате ты не участвуешь. Чужие формы открываются во вкладке вишлистов.</p>
+        <p className="note">В этой комнате ты не участвуешь. Смотри участников во вкладке «Участники».</p>
       ) : (
       <>
-      <div className="editor">
-        <div>
-          <div className="label">
-            <Squiggle />
-            <span>заметка</span>
-          </div>
-          <label className="line">
-            <span>для того, кому ты выпадешь</span>
-            <textarea rows={3} maxLength={160} value={seat?.note || ''} onChange={(event) => setNote(event.target.value)} />
-          </label>
-          <p className="demo-hint">На общем поле её не видно. Она откроется вместе со списком после раздачи.</p>
+      <form className="stack-form wish-form" onSubmit={submit}>
+        <div className="label">
+          <Squiggle />
+          <span>новое желание</span>
         </div>
-        <form onSubmit={submit}>
-          <div className="label">
-            <Squiggle />
-            <span>новое желание</span>
-          </div>
-          <label className="line">
-            <span>название</span>
-            <input value={title} onChange={(event) => setTitle(event.target.value)} />
-          </label>
-          <label className="line">
-            <span>ссылка на покупку</span>
-            <input value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://" inputMode="url" />
-          </label>
-          <div className="photo-row">
-            <input ref={fileRef} type="file" accept="image/*" hidden onChange={onFile} />
-            <button className="text-btn" type="button" onClick={() => fileRef.current?.click()}>
-              {fileName || 'загрузить фото'}
-            </button>
-            {file && <span className="demo-hint">фото выбрано</span>}
-          </div>
-          {err && <p className="err">{err}</p>}
-          {saveError && <p className="err">Ошибка сохранения. Попробуй ещё раз.</p>}
-          <button className="fill" type="submit">
-            добавить в список
+        <label className="line">
+          <span>название</span>
+          <input value={title} onChange={(event) => setTitle(event.target.value)} />
+        </label>
+        <label className="line">
+          <span>ссылка на покупку</span>
+          <input value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://" inputMode="url" />
+        </label>
+        <div className="photo-row">
+          <input ref={fileRef} type="file" accept="image/*" hidden onChange={onFile} />
+          <button className="text-btn" type="button" onClick={() => fileRef.current?.click()}>
+            {fileName || 'Прикрепить фото'}
           </button>
-        </form>
-      </div>
+          {file && <span className="demo-hint">фото сжимается перед отправкой</span>}
+        </div>
+        {err && <p className="err">{err}</p>}
+        {saveError && <p className="err">Ошибка сохранения. Попробуй ещё раз.</p>}
+        <button className="fill" type="submit" disabled={busy}>
+          {busy ? (file ? 'Сжимаю и отправляю…' : 'Добавляю…') : 'Добавить в вишлист'}
+        </button>
+      </form>
 
       <div className="label mine-label">
         <Squiggle />

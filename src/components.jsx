@@ -234,15 +234,15 @@ export function Header() {
         <div className="top-actions">
           {isAdmin && (
             <button className="quiet blend" type="button" onClick={onColors}>
-              <span className="full">вишлисты</span>
-              <span className="short">цвета</span>
+              <span className="full">участники</span>
+              <span className="short">люди</span>
             </button>
           )}
           <button className="quiet blend" type="button" onClick={() => travel('/rooms')}>
             <span className="full">комнаты</span>
             <span className="short">мои</span>
           </button>
-          <button className="circle letter" type="button" aria-label="личный кабинет" onClick={onAccount}>
+          <button className="circle letter" type="button" aria-label="мой вишлист" onClick={onAccount}>
             {user ? (user.firstName || user.username || '?').slice(0, 1).toUpperCase() : <Person />}
           </button>
         </div>
@@ -256,14 +256,14 @@ export function Header() {
             </button>
             {isAdmin && (
               <button type="button" className="menu-link" onClick={onColors}>
-                Вишлисты
+                Участники
               </button>
             )}
             <button type="button" className="menu-link" onClick={() => travel('/rooms')}>
               Комнаты
             </button>
             <button type="button" className="menu-link" onClick={onAccount}>
-              Кабинет
+              Мой вишлист
             </button>
             {canTune && (
               <button type="button" className="menu-link" onClick={() => travel('/admin')}>
@@ -416,7 +416,6 @@ export function Collection({ wl, kicker, side, particle = 'snow' }) {
               <Squiggle />
               <span>желания</span>
             </div>
-            <p className="note">{wl.note}</p>
             {side}
           </div>
         </div>
