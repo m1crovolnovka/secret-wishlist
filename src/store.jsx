@@ -168,7 +168,11 @@ export function StoreProvider({ children }) {
     let cancelled = false
     ;(async () => {
       try {
-        await initTelegram()
+        // Never let Telegram SDK hang the whole Mini App (Desktop viewport.mount bug)
+        await Promise.race([
+          initTelegram(),
+          new Promise((resolve) => setTimeout(resolve, 1500)),
+        ])
         let initData = getInitData()
         // Dev fallback: paste initData via ?initData= or localStorage
         if (!initData) initData = localStorage.getItem('taino-dev-init-data') || ''
@@ -211,7 +215,11 @@ export function StoreProvider({ children }) {
           setBoot({ loading: false, error: null })
         }
       } catch (err) {
-        if (!cancelled) setBoot({ loading: false, error: err.message || 'Ошибка входа' })
+        const message =
+          err?.message === 'Failed to fetch' || err?.name === 'TypeError'
+            ? `Не удалось связаться с API (${import.meta.env.VITE_API_BASE_URL || 'URL не задан'}). Проверь VITE_API_BASE_URL и CORS.`
+            : err.message || 'Ошибка входа'
+        if (!cancelled) setBoot({ loading: false, error: message })
       }
     })()
     return () => {

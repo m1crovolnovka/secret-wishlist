@@ -1307,3 +1307,11 @@ body {
   font-family: "IBM Plex Mono", monospace;
   font-size: 0.85em;
 }
+
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-top: 18px;
+}

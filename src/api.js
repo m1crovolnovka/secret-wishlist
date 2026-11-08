@@ -1,4 +1,10 @@
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080').replace(/\/$/, '')
+function resolveApiBase() {
+  const runtime = typeof window !== 'undefined' ? window.__TAINO_API_BASE_URL__ : ''
+  const fromEnv = import.meta.env.VITE_API_BASE_URL
+  return String(runtime || fromEnv || 'http://localhost:8080').replace(/\/$/, '')
+}
+
+const API_BASE = resolveApiBase()
 
 let token = localStorage.getItem('taino-jwt') || ''
 

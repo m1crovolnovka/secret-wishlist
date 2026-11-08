@@ -20,26 +20,55 @@ function can(fn) {
   }
 }
 
+function withTimeout(promise, ms) {
+  return Promise.race([
+    Promise.resolve(promise).catch(() => undefined),
+    new Promise((resolve) => setTimeout(resolve, ms)),
+  ])
+}
+
+/**
+ * Telegram Desktop can hang forever on viewport.mount() (safe-area event bug).
+ * Never await it without a hard timeout — otherwise the Mini App stays on a white screen.
+ */
 export async function initTelegram() {
   try {
     initSdk()
+
+    // Tell Telegram to swap its loader for our UI as early as possible
     if (can(miniApp.mount)) miniApp.mount()
     if (can(miniApp.ready)) miniApp.ready()
-    if (can(viewport.mount)) {
-      await viewport.mount()
-      if (can(viewport.expand)) viewport.expand()
-    }
+
     if (can(themeParams.mount)) themeParams.mount()
+
+    if (can(viewport.mount)) {
+      await withTimeout(
+        typeof viewport.mount === 'function' ? viewport.mount({ timeout: 800 }) : viewport.mount(),
+        1000,
+      )
+      try {
+        if (can(viewport.expand)) viewport.expand()
+      } catch {
+        // ignore
+      }
+    }
+
     if (can(swipeBehavior.mount)) {
       swipeBehavior.mount()
       if (can(swipeBehavior.disableVertical)) swipeBehavior.disableVertical()
     }
     if (can(backButton.mount)) backButton.mount()
+
     applySafeArea()
     applyTelegramTheme()
     ready = true
   } catch {
     ready = false
+    try {
+      if (can(miniApp.ready)) miniApp.ready()
+    } catch {
+      // ignore
+    }
   }
   return ready
 }
