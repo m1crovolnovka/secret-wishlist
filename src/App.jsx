@@ -1,11 +1,13 @@
 import { useEffect } from 'react'
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import { Header, Pour, ScrollReset } from './components'
 import { Admin, Cabinet, Colors, Enter, Home, NewRoom, Rooms } from './pages'
 import { useStore } from './store'
+import { showBackButton } from './telegram'
 
 export default function App() {
-  const { theme } = useStore()
+  const { theme, boot } = useStore()
+  const navigate = useNavigate()
 
   useEffect(() => {
     const root = document.documentElement
@@ -16,6 +18,31 @@ export default function App() {
     const meta = document.querySelector('meta[name="theme-color"]')
     if (meta) meta.setAttribute('content', theme.blob)
   }, [theme])
+
+  useEffect(() => {
+    return showBackButton(() => navigate(-1))
+  }, [navigate])
+
+  if (boot.loading) {
+    return (
+      <main className="boot-screen">
+        <p>Загрузка Тайно…</p>
+      </main>
+    )
+  }
+
+  if (boot.error) {
+    return (
+      <main className="boot-screen">
+        <h1>Тайно</h1>
+        <p>{boot.error}</p>
+        <p className="muted">
+          Для локальной отладки: сохрани валидный initData в{' '}
+          <code>localStorage.taino-dev-init-data</code>
+        </p>
+      </main>
+    )
+  }
 
   return (
     <>
