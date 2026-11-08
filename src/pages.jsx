@@ -30,6 +30,21 @@ import {
 } from './data'
 import { useGo, useStore } from './store'
 
+function RuDateTimeInput({ value, onChange }) {
+  const ts = value ? fromInput(value) || (typeof value === 'number' ? value : null) : null
+  const local = typeof value === 'string' ? value : value ? toInput(value) : ''
+  return (
+    <div className="ru-dt">
+      <span className="ru-dt-value">{ts ? formatWhen(ts) : 'выбери дату и время'}</span>
+      <input type="datetime-local" lang="ru" value={local} onChange={onChange} />
+    </div>
+  )
+}
+
+function colorLabel(themeId, colorCode) {
+  return colorById(themeId, colorCode)?.name || colorCode || '—'
+}
+
 function normalizeUrl(raw) {
   const value = raw.trim()
   if (!value) return ''
@@ -147,9 +162,12 @@ export function Home() {
             {hosting ? ' Ты ведёшь комнату и в раздаче не участвуешь.' : ''}
             {drawn && !data.user ? ' Раздача уже была — войди, чтобы увидеть свой список.' : ''}
           </p>
-          {isAdmin ? (
-            <>
-              {drawn ? (
+          <div className="row-actions">
+            <button className="fill" type="button" onClick={() => go('/cabinet')}>
+              мой вишлист
+            </button>
+            {isAdmin ? (
+              drawn ? (
                 <button className="text-btn" type="button" onClick={undraw}>
                   закрыть раздачу
                 </button>
@@ -157,26 +175,26 @@ export function Home() {
                 <button className="text-btn" type="button" onClick={drawNow}>
                   разыграть сейчас
                 </button>
-              )}
-              <p className="demo-hint">Кнопка админа. Роль, срок и сумма — в настройках.</p>
+              )
+            ) : null}
+          </div>
+          {isAdmin ? (
+            <div className="row-actions">
               <button className="text-btn" type="button" onClick={() => go('/admin')}>
                 настройки комнаты
               </button>
-            </>
+              <button className="text-btn" type="button" onClick={() => go('/colors')}>
+                формы участников
+              </button>
+            </div>
           ) : isGlobalAdmin ? (
-            <>
-              <p className="demo-hint">Сейчас ты как участник: вишлисты закрыты. Роль можно сменить в настройках.</p>
-              <button className="text-btn" type="button" onClick={() => go('/admin')}>
-                настройки комнаты
-              </button>
-            </>
+            <button className="text-btn" type="button" onClick={() => go('/admin')}>
+              настройки комнаты
+            </button>
           ) : (
-            <>
-              <p className="demo-hint">Раздачу откроет админ комнаты.</p>
-              <button className="text-btn" type="button" onClick={() => go('/rooms')}>
-                другие комнаты
-              </button>
-            </>
+            <button className="text-btn" type="button" onClick={() => go('/rooms')}>
+              другие комнаты
+            </button>
           )}
         </div>
       </section>
@@ -208,7 +226,6 @@ export function Home() {
           </li>
         </ol>
       </section>
-      <footer className="foot">демо · комнаты и желания живут в этом браузере</footer>
     </>
   )
 }
@@ -254,7 +271,7 @@ export function Colors() {
                 <span>
                   <b>{item.displayName}</b>
                   <small>
-                    {item.username ? `@${item.username}` : item.firstName} · {item.colorCode}
+                    {item.username ? `@${item.username}` : item.firstName} · {colorLabel(room.theme, item.colorCode)}
                   </small>
                 </span>
               </button>
@@ -268,7 +285,7 @@ export function Colors() {
               <span>участник · {person.displayName}</span>
             </div>
             <p className="note">
-              Цвет: {person.colorCode}. Участие: {person.participates ? 'да' : 'нет'}.
+              Цвет: {colorLabel(room.theme, person.colorCode)}. Участие: {person.participates ? 'да' : 'нет'}.
             </p>
             {person.role !== 'OWNER' && !room.forceDrawn && (
               <button className="text-btn" type="button" onClick={() => kickMember(person.memberId)}>
@@ -345,12 +362,14 @@ export function Rooms() {
         <p className="crumb">твои круги</p>
         <h1>Комнаты</h1>
         <p className="note">Учёба, работа, свой круг — у каждого своя комната, свой срок и своя тема.</p>
-        <button className="fill room-new" type="button" onClick={() => go('/rooms/new')}>
-          новая комната
-        </button>
-        <button className="text-btn" type="button" onClick={() => go('/enter')}>
-          войти по коду
-        </button>
+        <div className="row-actions room-new">
+          <button className="fill" type="button" onClick={() => go('/rooms/new')}>
+            новая комната
+          </button>
+          <button className="text-btn" type="button" onClick={() => go('/enter')}>
+            войти по коду
+          </button>
+        </div>
       </section>
       <div className="room-list">
         {ordered.map((item) => {
@@ -509,11 +528,11 @@ export function NewRoom() {
         <p className="demo-hint">{money(budget, currency) || 'сумма не задана'}</p>
         <label className="line">
           <span>раздача</span>
-          <input type="datetime-local" value={drawAt} onChange={(event) => setDrawAt(event.target.value)} />
+          <RuDateTimeInput value={drawAt} onChange={(event) => setDrawAt(event.target.value)} />
         </label>
         <label className="line">
           <span>подарить до</span>
-          <input type="datetime-local" value={giftBy} onChange={(event) => setGiftBy(event.target.value)} />
+          <RuDateTimeInput value={giftBy} onChange={(event) => setGiftBy(event.target.value)} />
         </label>
         {err && <p className="err">{err}</p>}
         <button className="fill" type="submit" disabled={busy}>
@@ -621,8 +640,7 @@ export function Admin() {
           </label>
           <label className="line">
             <span>раздача</span>
-            <input
-              type="datetime-local"
+            <RuDateTimeInput
               value={toInput(room.drawAt)}
               onChange={(event) => {
                 const ts = fromInput(event.target.value)
@@ -630,11 +648,10 @@ export function Admin() {
               }}
             />
           </label>
-          <p className="demo-hint">Сейчас в календаре: {formatWhen(room.drawAt)}. Если сдвинуть вперёд, выпавший список снова закроется.</p>
+          <p className="demo-hint">Если сдвинуть вперёд, выпавший список снова закроется.</p>
           <label className="line">
             <span>подарить до</span>
-            <input
-              type="datetime-local"
+            <RuDateTimeInput
               value={toInput(room.giftBy)}
               onChange={(event) => {
                 const ts = fromInput(event.target.value)
@@ -642,7 +659,6 @@ export function Admin() {
               }}
             />
           </label>
-          <p className="demo-hint">{formatWhen(room.giftBy)}</p>
           <div className="label space">
             <Squiggle />
             <span>сумма подарка</span>
@@ -673,7 +689,7 @@ export function Admin() {
           </label>
           <p className="demo-hint">{money(room.budget, room.currency) || 'сумма не задана'}</p>
           {isAdmin ? (
-            <>
+            <div className="row-actions">
               <button className="text-btn" type="button" onClick={() => go('/colors')}>
                 формы участников
               </button>
@@ -686,7 +702,7 @@ export function Admin() {
                   разыграть сейчас
                 </button>
               )}
-            </>
+            </div>
           ) : (
             <p className="demo-hint">Раздача и формы снова откроются, если выбрать «Админ участвует» или «Админ не участвует».</p>
           )}
@@ -777,7 +793,22 @@ export function Cabinet() {
   useTitle('кабинет')
 
   if (!data.user) return <Navigate to="/enter" replace />
-  if (!room) return null
+  if (!room) {
+    return (
+      <section className="sheet missing">
+        <h1>Кабинет</h1>
+        <p className="note">Сначала создай комнату или войди по коду — тогда появится вишлист.</p>
+        <div className="row-actions">
+          <button className="fill" type="button" onClick={() => go('/rooms/new')}>
+            создать комнату
+          </button>
+          <button className="text-btn" type="button" onClick={() => go('/enter')}>
+            есть код
+          </button>
+        </div>
+      </section>
+    )
+  }
 
   const hosting = isGlobalAdmin && room.presence === 'out'
   const gifts = seat?.gifts || []

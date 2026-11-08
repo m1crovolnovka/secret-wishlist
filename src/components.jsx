@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation } from 'react-router-dom'
+import { mediaUrl } from './api'
 import { MIN_PEOPLE, THEMES, peopleCount, themeToken } from './data'
 import { useGo, useStore } from './store'
 
@@ -55,14 +56,15 @@ export function Lip({ color }) {
 
 export function Photo({ src, alt }) {
   const [failed, setFailed] = useState(false)
-  if (!src || failed) {
+  const resolved = mediaUrl(src)
+  if (!resolved || failed) {
     return (
       <div className="ph" role="img" aria-label={alt}>
         <span>{alt}</span>
       </div>
     )
   }
-  return <img src={src} alt={alt} onError={() => setFailed(true)} decoding="async" loading="lazy" />
+  return <img src={resolved} alt={alt} onError={() => setFailed(true)} decoding="async" loading="lazy" />
 }
 
 export function Timer({ to, now }) {
@@ -270,7 +272,7 @@ export function Header() {
             )}
           </div>
           <div className="menu-foot">
-            <span>{room ? `${room.title} · ${isRevealed ? 'список открыт' : 'ждём срок'}` : 'демо'}</span>
+            <span>{room ? `${room.title} · ${isRevealed ? 'список открыт' : 'ждём срок'}` : 'выбери комнату'}</span>
             <button
               type="button"
               className="text-btn light"
@@ -279,7 +281,7 @@ export function Header() {
                 reset()
               }}
             >
-              сбросить демо
+              выйти
             </button>
           </div>
         </nav>

@@ -535,6 +535,7 @@ export function formatWhen(ts) {
     month: 'long',
     hour: '2-digit',
     minute: '2-digit',
+    hourCycle: 'h23',
   })
 }
 

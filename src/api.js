@@ -4,7 +4,7 @@ function resolveApiBase() {
   return String(runtime || fromEnv || 'http://localhost:8080').replace(/\/$/, '')
 }
 
-const API_BASE = resolveApiBase()
+export const API_BASE = resolveApiBase()
 
 let token = localStorage.getItem('taino-jwt') || ''
 
@@ -18,12 +18,21 @@ export function getToken() {
   return token
 }
 
+/** Turn relative /api/images/... into an absolute URL for <img src>. */
+export function mediaUrl(url) {
+  if (!url) return ''
+  if (/^https?:\/\//i.test(url) || url.startsWith('data:')) return url
+  if (url.startsWith('/')) return `${API_BASE}${url}`
+  return `${API_BASE}/${url}`
+}
+
 async function request(path, options = {}) {
   const headers = new Headers(options.headers || {})
   if (!headers.has('Content-Type') && !(options.body instanceof FormData)) {
     headers.set('Content-Type', 'application/json')
   }
-  if (token) headers.set('Authorization', `Bearer ${token}`)
+  const skipAuth = path.startsWith('/api/auth/')
+  if (token && !skipAuth) headers.set('Authorization', `Bearer ${token}`)
 
   const res = await fetch(`${API_BASE}${path}`, { ...options, headers })
   if (res.status === 204) return null
