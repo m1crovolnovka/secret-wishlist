@@ -95,7 +95,7 @@ export function Home() {
     )
   }
 
-  const count = room.people.length
+  const count = room.memberCount || room.people?.length || 0
 
   return (
     <>
@@ -196,52 +196,18 @@ export function Home() {
 }
 
 export function Colors() {
-  const { room, theme, isAdmin, patchPerson, addPersonGift, removePersonGift } = useStore()
+  const { room, theme, isAdmin, participants, kickMember, changeRequests, decideChange } = useStore()
   const [pid, setPid] = useState('')
-  const [title, setTitle] = useState('')
-  const [url, setUrl] = useState('')
-  const [photo, setPhoto] = useState('')
-  const [err, setErr] = useState('')
-  const fileRef = useRef(null)
   useTitle('вишлисты')
 
   useEffect(() => {
     setPid('')
-    setTitle('')
-    setUrl('')
-    setPhoto('')
-    setErr('')
   }, [room?.id])
 
   if (!room) return null
   if (!isAdmin) return <Navigate to="/" replace />
 
-  const person = room.people.find((item) => item.pid === pid) || null
-
-  async function onFile(event) {
-    const file = event.target.files?.[0]
-    if (!file) return
-    setPhoto(await fileToDataUrl(file))
-  }
-
-  function addWish(event) {
-    event.preventDefault()
-    if (!person) return
-    if (!title.trim()) {
-      setErr('нужно название')
-      return
-    }
-    if (person.gifts.length >= 12) {
-      setErr('в демо хватит двенадцати желаний')
-      return
-    }
-    addPersonGift(person.pid, { title: title.trim(), url: normalizeUrl(url), photo })
-    setTitle('')
-    setUrl('')
-    setPhoto('')
-    setErr('')
-    if (fileRef.current) fileRef.current.value = ''
-  }
+  const person = participants.find((item) => String(item.memberId) === String(pid)) || null
 
   return (
     <>
@@ -249,21 +215,31 @@ export function Colors() {
         <Weather type={theme.particle} color={theme.ink} />
         <div className="blob blob-a" />
         <p className="crumb">{room.title} · только админ</p>
-        <h1>Вишлисты</h1>
+        <h1>Участники</h1>
         <p className="note">
-          {peopleCount(room.people.length)}. Здесь видно, чья форма. Её можно поправить. Участникам имя не показывается.
+          {peopleCount(participants.length)}. Цвета видны только тебе. Участникам имя и цвет не показываются.
         </p>
       </section>
       <section className="sheet forms">
         <ul className="roster">
-          {room.people.map((item) => (
-            <li key={item.pid}>
-              <PersonRow
-                person={item}
-                themeId={room.theme}
-                active={item.pid === pid}
-                onClick={() => setPid(item.pid === pid ? '' : item.pid)}
-              />
+          {participants.map((item) => (
+            <li key={item.memberId}>
+              <button
+                type="button"
+                className={String(item.memberId) === String(pid) ? 'person on' : 'person'}
+                onClick={() => setPid(item.memberId === pid ? '' : item.memberId)}
+              >
+                <span
+                  className="swatch"
+                  style={{ background: colorById(room.theme, item.colorCode)?.base || '#999' }}
+                />
+                <span>
+                  <b>{item.displayName}</b>
+                  <small>
+                    {item.username ? `@${item.username}` : item.firstName} · {item.colorCode}
+                  </small>
+                </span>
+              </button>
             </li>
           ))}
         </ul>
@@ -271,78 +247,47 @@ export function Colors() {
           <div className="person-editor">
             <div className="label">
               <Squiggle />
-              <span>форма · {person.name}</span>
+              <span>участник · {person.displayName}</span>
             </div>
-            <label className="line">
-              <span>заметка для того, кому выпадет</span>
-              <textarea
-                rows={3}
-                maxLength={160}
-                value={person.note}
-                onChange={(event) => patchPerson(person.pid, { note: event.target.value })}
-              />
-            </label>
-            {person.gifts.length === 0 ? (
-              <p className="note">Пока пусто.</p>
-            ) : (
-              <ul className="mine">
-                {person.gifts.map((gift) => (
-                  <li key={gift.id}>
-                    <div className="frame">
-                      <Photo src={gift.photo} alt={gift.title} />
-                    </div>
-                    <div>
-                      <h3>{gift.title}</h3>
-                      <div className="item-actions">
-                        {gift.url ? (
-                          <a className="buy" href={gift.url} target="_blank" rel="noreferrer">
-                            к покупке
-                          </a>
-                        ) : (
-                          <span className="demo-hint">без ссылки</span>
-                        )}
-                        <button className="text-btn" type="button" onClick={() => removePersonGift(person.pid, gift.id)}>
-                          убрать
-                        </button>
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <form onSubmit={addWish}>
-              <label className="line">
-                <span>новое желание</span>
-                <input value={title} onChange={(event) => setTitle(event.target.value)} />
-              </label>
-              <label className="line">
-                <span>ссылка</span>
-                <input value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://" inputMode="url" />
-              </label>
-              <div className="photo-row">
-                <input ref={fileRef} type="file" accept="image/*" hidden onChange={onFile} />
-                <button className="text-btn" type="button" onClick={() => fileRef.current?.click()}>
-                  {photo ? 'фото выбрано' : 'загрузить фото'}
-                </button>
-              </div>
-              <div className="samples">
-                {SAMPLES.map((sample) => (
-                  <button
-                    key={sample.src}
-                    type="button"
-                    className={photo === sample.src ? 'on' : ''}
-                    onClick={() => setPhoto(sample.src)}
-                  >
-                    <img src={sample.src} alt={sample.title} />
-                  </button>
-                ))}
-              </div>
-              {err && <p className="err">{err}</p>}
-              <button className="fill" type="submit">
-                добавить в форму
+            <p className="note">
+              Цвет: {person.colorCode}. Участие: {person.participates ? 'да' : 'нет'}.
+            </p>
+            {person.role !== 'OWNER' && !room.forceDrawn && (
+              <button className="text-btn" type="button" onClick={() => kickMember(person.memberId)}>
+                исключить
               </button>
-            </form>
+            )}
           </div>
+        )}
+        <div className="label">
+          <Squiggle />
+          <span>запросы на изменение</span>
+        </div>
+        {changeRequests.length === 0 ? (
+          <p className="note">Очередь пуста.</p>
+        ) : (
+          <ul className="mine">
+            {changeRequests.map((req) => (
+              <li key={req.id}>
+                <div>
+                  <h3>{req.displayName}</h3>
+                  <p className="note">{req.reason}</p>
+                  <p className="demo-hint">{req.requestedChanges}</p>
+                  <p className="demo-hint">{req.status}</p>
+                  {req.status === 'PENDING' && (
+                    <div className="item-actions">
+                      <button className="text-btn" type="button" onClick={() => decideChange(req.id, true)}>
+                        принять
+                      </button>
+                      <button className="text-btn" type="button" onClick={() => decideChange(req.id, false)}>
+                        отклонить
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
         )}
       </section>
     </>
@@ -372,7 +317,7 @@ export function Rooms() {
   const ordered = [...rooms].sort((a, b) => {
     if (a.id === room?.id) return -1
     if (b.id === room?.id) return 1
-    return b.createdAt - a.createdAt
+    return Number(b.numericId || 0) - Number(a.numericId || 0)
   })
 
   return (
@@ -382,11 +327,12 @@ export function Rooms() {
         <p className="crumb">твои круги</p>
         <h1>Комнаты</h1>
         <p className="note">Учёба, работа, свой круг — у каждого своя комната, свой срок и своя тема.</p>
-        {isGlobalAdmin && (
-          <button className="fill room-new" type="button" onClick={() => go('/rooms/new')}>
-            новая комната
-          </button>
-        )}
+        <button className="fill room-new" type="button" onClick={() => go('/rooms/new')}>
+          новая комната
+        </button>
+        <button className="text-btn" type="button" onClick={() => go('/enter')}>
+          войти по коду
+        </button>
       </section>
       <div className="room-list">
         {ordered.map((item) => {
@@ -402,16 +348,17 @@ export function Rooms() {
               </svg>
               <button className="room-hit" type="button" onClick={() => focusRoom(item.id, '/')}>
                 <p className="crumb">
-                  {theme.label} · {roomMark(item, data.user)}
+                  {theme.label} · {item.myRole === 'OWNER' ? roomMark(item, { name: 'qqq', email: 'qqq@qqq' }) : 'участник'}
                   {item.id === room?.id ? ' · сейчас' : ''}
                 </p>
                 <h2>{item.title}</h2>
                 <span className="band-more">
-                  {peopleCount(item.people.length)} · {drawn ? 'список выпал' : 'ждём раздачу'}
+                  {peopleCount(item.memberCount || 0)} · {drawn ? 'список выпал' : 'ждём раздачу'}
                   {item.budget ? ` · ${money(item.budget, item.currency)}` : ''}
+                  {item.code ? ` · код ${item.code}` : ''}
                 </span>
               </button>
-              {isGlobalAdmin && (
+              {item.canTune && (
                 <button className="text-btn" type="button" onClick={() => focusRoom(item.id, '/admin')}>
                   настройки
                 </button>
@@ -425,24 +372,22 @@ export function Rooms() {
 }
 
 export function NewRoom() {
-  const { createRoom, isGlobalAdmin } = useStore()
+  const { createRoom } = useStore()
   const go = useGo()
   const [title, setTitle] = useState('')
   const [theme, setTheme] = useState('newyear')
-  const [count, setCount] = useState(6)
   const [presence, setPresence] = useState('in')
   const [budget, setBudget] = useState('100')
   const [currency, setCurrency] = useState(DEFAULT_CURRENCY)
   const [drawAt, setDrawAt] = useState(() => toInput(Date.now() + 14 * 86400000))
   const [giftBy, setGiftBy] = useState(() => toInput(Date.now() + 24 * 86400000))
   const [err, setErr] = useState('')
+  const [busy, setBusy] = useState(false)
   const look = themeOf(theme)
   const cash = currencyOf(currency)
   useTitle('новая комната')
 
-  if (!isGlobalAdmin) return <Navigate to="/rooms" replace />
-
-  function submit(event) {
+  async function submit(event) {
     event.preventDefault()
     if (title.trim().length < 2) {
       setErr('как назвать комнату?')
@@ -458,16 +403,22 @@ export function NewRoom() {
       setErr('подарок позже раздачи')
       return
     }
-    createRoom({
-      title: title.trim(),
-      theme,
-      count,
-      presence,
-      budget: readBudget(budget),
-      currency,
-      drawAt: draw,
-      giftBy: gift,
-    })
+    setBusy(true)
+    setErr('')
+    try {
+      await createRoom({
+        title: title.trim(),
+        theme,
+        presence,
+        budget: readBudget(budget),
+        currency,
+        drawAt: draw,
+        giftBy: gift,
+      })
+    } catch (e) {
+      setErr(e.message || 'не удалось создать')
+      setBusy(false)
+    }
   }
 
   return (
@@ -477,7 +428,7 @@ export function NewRoom() {
       <div className="enter-copy">
         <p className="crumb">ты создаёшь комнату</p>
         <h1>Новая</h1>
-        <p className="note">Срок, сумма и твоя роль в этой комнате. Чужие формы потом лежат во вкладке вишлистов.</p>
+        <p className="note">Срок, сумма и твоя роль в этой комнате. Минимум участников для раздачи — {MIN_PEOPLE}.</p>
       </div>
       <form className="stack-form" onSubmit={submit}>
         <label className="line">
@@ -506,13 +457,8 @@ export function NewRoom() {
           <span>тема</span>
         </div>
         <ThemePicker value={theme} onChange={setTheme} />
-        <div className="label space">
-          <Squiggle />
-          <span>участники</span>
-        </div>
-        <Stepper value={count} min={MIN_PEOPLE} onChange={setCount} />
         <p className="demo-hint">
-          {presence === 'out' ? 'Тебя в этом числе нет: только ведёшь.' : 'Ты входишь в это число. Остальные в демо уже на местах.'}
+          {presence === 'out' ? 'Ты только ведёшь комнату и не участвуешь в раздаче.' : 'Ты участвуешь в раздаче.'}
         </p>
         <div className="label space">
           <Squiggle />
@@ -552,8 +498,8 @@ export function NewRoom() {
           <input type="datetime-local" value={giftBy} onChange={(event) => setGiftBy(event.target.value)} />
         </label>
         {err && <p className="err">{err}</p>}
-        <button className="fill" type="submit">
-          создать комнату
+        <button className="fill" type="submit" disabled={busy}>
+          {busy ? 'создаю…' : 'создать комнату'}
         </button>
         <button className="text-btn" type="button" onClick={() => go('/rooms')}>
           к комнатам
@@ -579,7 +525,7 @@ export function Admin() {
       <section className="sheet missing">
         <p className="crumb">{room.title}</p>
         <h1>Не твоя</h1>
-        <p className="note">Настройки и чужие формы только у админа. Для входа: имя qqq, почта qqq@qqq.</p>
+        <p className="note">Настройки только у владельца комнаты.</p>
         <button className="text-btn" type="button" onClick={() => go('/')}>
           на главную
         </button>
@@ -587,7 +533,7 @@ export function Admin() {
     )
   }
 
-  const count = room.people.length
+  const count = room.memberCount || 0
   const guest = room.presence === 'guest'
 
   return (
@@ -638,14 +584,9 @@ export function Admin() {
             <Squiggle />
             <span>участники</span>
           </div>
-          <Stepper
-            value={count}
-            min={MIN_PEOPLE}
-            disabled={isRevealed || room.forceDrawn || now >= room.drawAt}
-            onChange={(next) => updateRoom({ count: next })}
-          />
+          <p className="note">{peopleCount(count)} · код комнаты {room.code}</p>
           <p className="demo-hint">
-            {isRevealed ? 'После раздачи состав зафиксирован.' : 'Потолка нет. Цвета участников на главной не показываем.'}
+            {isRevealed ? 'После раздачи состав зафиксирован.' : `Для авто-раздачи нужно минимум ${MIN_PEOPLE}.`}
           </p>
         </div>
         <form onSubmit={(event) => event.preventDefault()}>
@@ -738,53 +679,52 @@ export function Admin() {
 }
 
 export function Enter() {
-  const { data, enter } = useStore()
+  const { joinByCode } = useStore()
   const go = useGo()
-  const [name, setName] = useState(data.user?.name || '')
-  const [email, setEmail] = useState(data.user?.email || '')
+  const [code, setCode] = useState('')
   const [err, setErr] = useState('')
-  useTitle('войти')
+  const [busy, setBusy] = useState(false)
+  useTitle('войти в комнату')
 
-  function submit(event) {
+  async function submit(event) {
     event.preventDefault()
-    if (name.trim().length < 2) {
-      setErr('как к тебе обращаться?')
+    if (code.trim().length < 4) {
+      setErr('введи код комнаты')
       return
     }
-    if (!email.includes('@')) {
-      setErr('нужна почта, хотя бы для вида')
-      return
+    setBusy(true)
+    setErr('')
+    try {
+      await joinByCode(code)
+      go('/')
+    } catch (e) {
+      setErr(e.message || 'не удалось войти')
+    } finally {
+      setBusy(false)
     }
-    enter(name, email)
-    go('/cabinet')
   }
 
   return (
     <section className="sheet enter">
       <div className="blob blob-a" />
       <div className="enter-copy">
-        <p className="crumb">кабинет</p>
-        <h1>Войти</h1>
-        <p className="note">Имя и почта остаются в этом браузере. В комнате тебя не подписывают.</p>
-        <p className="demo-hint">Админ: имя qqq, почта qqq@qqq. Любой другой вход — участник.</p>
+        <p className="crumb">приглашение</p>
+        <h1>Код комнаты</h1>
+        <p className="note">Вход через Telegram Mini App. Код — из ссылки бота или от админа.</p>
       </div>
       <form className="enter-form" onSubmit={submit}>
         <label className="line">
-          <span>имя</span>
-          <input value={name} onChange={(event) => setName(event.target.value)} autoComplete="name" />
-        </label>
-        <label className="line">
-          <span>почта</span>
+          <span>код</span>
           <input
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            autoComplete="email"
-            inputMode="email"
+            value={code}
+            onChange={(event) => setCode(event.target.value.toUpperCase())}
+            placeholder="ABCD2345"
+            autoComplete="off"
           />
         </label>
         {err && <p className="err">{err}</p>}
-        <button className="fill" type="submit">
-          войти
+        <button className="fill" type="submit" disabled={busy}>
+          {busy ? 'вхожу…' : 'войти'}
         </button>
       </form>
     </section>
@@ -792,14 +732,30 @@ export function Enter() {
 }
 
 export function Cabinet() {
-  const { data, room, rooms, seat, isGlobalAdmin, focusRoom, setNote, addGift, removeGift, logout, reset, saveError } = useStore()
+  const {
+    data,
+    room,
+    rooms,
+    seat,
+    isGlobalAdmin,
+    focusRoom,
+    setNote,
+    addGift,
+    removeGift,
+    logout,
+    saveError,
+    requestChange,
+    changeRequests,
+  } = useStore()
   const go = useGo()
   const fileRef = useRef(null)
   const [title, setTitle] = useState('')
   const [url, setUrl] = useState('')
-  const [photo, setPhoto] = useState('')
+  const [file, setFile] = useState(null)
   const [fileName, setFileName] = useState('')
   const [err, setErr] = useState('')
+  const [changeReason, setChangeReason] = useState('')
+  const [changeWhat, setChangeWhat] = useState('')
   useTitle('кабинет')
 
   if (!data.user) return <Navigate to="/enter" replace />
@@ -807,32 +763,51 @@ export function Cabinet() {
 
   const hosting = isGlobalAdmin && room.presence === 'out'
   const gifts = seat?.gifts || []
+  const displayName = data.user.firstName || data.user.username || 'ты'
 
   async function onFile(event) {
-    const file = event.target.files?.[0]
-    if (!file) return
-    const next = await fileToDataUrl(file)
-    setPhoto(next)
-    setFileName(file.name)
+    const next = event.target.files?.[0]
+    if (!next) return
+    setFile(next)
+    setFileName(next.name)
   }
 
-  function submit(event) {
+  async function submit(event) {
     event.preventDefault()
     if (!title.trim()) {
       setErr('нужно название')
       return
     }
     if (gifts.length >= 12) {
-      setErr('в демо хватит двенадцати желаний')
+      setErr('хватит двенадцати желаний')
       return
     }
-    addGift({ title: title.trim(), url: normalizeUrl(url), photo })
-    setTitle('')
-    setUrl('')
-    setPhoto('')
-    setFileName('')
-    setErr('')
-    if (fileRef.current) fileRef.current.value = ''
+    try {
+      await addGift({ title: title.trim(), url: normalizeUrl(url), file })
+      setTitle('')
+      setUrl('')
+      setFile(null)
+      setFileName('')
+      setErr('')
+      if (fileRef.current) fileRef.current.value = ''
+    } catch (e) {
+      setErr(e.message || 'не удалось добавить')
+    }
+  }
+
+  async function submitChange(event) {
+    event.preventDefault()
+    if (!changeReason.trim() || !changeWhat.trim()) {
+      setErr('нужны причина и что менять')
+      return
+    }
+    try {
+      await requestChange(changeReason.trim(), changeWhat.trim())
+      setChangeReason('')
+      setChangeWhat('')
+    } catch (e) {
+      setErr(e.message || 'не удалось отправить запрос')
+    }
   }
 
   return (
@@ -840,17 +815,17 @@ export function Cabinet() {
       <div className="cab-head">
         <div>
           <p className="crumb">личный кабинет · {room.title}</p>
-          <h1>{data.user.name}</h1>
-          <p className="note">{data.user.email}</p>
+          <h1>{displayName}</h1>
+          <p className="note">{data.user.username ? `@${data.user.username}` : 'без username'}</p>
           <div className="cab-actions">
             <button className="text-btn" type="button" onClick={logout}>
               выйти
             </button>
-            <button className="text-btn" type="button" onClick={reset}>
-              сбросить демо
-            </button>
             <button className="text-btn" type="button" onClick={() => go('/rooms')}>
               все комнаты
+            </button>
+            <button className="text-btn" type="button" onClick={() => go('/enter')}>
+              код комнаты
             </button>
           </div>
         </div>
@@ -907,25 +882,10 @@ export function Cabinet() {
             <button className="text-btn" type="button" onClick={() => fileRef.current?.click()}>
               {fileName || 'загрузить фото'}
             </button>
-            {photo && <span className="demo-hint">фото выбрано</span>}
-          </div>
-          <div className="samples">
-            {SAMPLES.map((sample) => (
-              <button
-                key={sample.src}
-                type="button"
-                className={photo === sample.src ? 'on' : ''}
-                onClick={() => {
-                  setPhoto(sample.src)
-                  setFileName('')
-                }}
-              >
-                <img src={sample.src} alt={sample.title} />
-              </button>
-            ))}
+            {file && <span className="demo-hint">фото выбрано</span>}
           </div>
           {err && <p className="err">{err}</p>}
-          {saveError && <p className="err">Хранилище браузера переполнено — фото лучше поменьше.</p>}
+          {saveError && <p className="err">Ошибка сохранения. Попробуй ещё раз.</p>}
           <button className="fill" type="submit">
             добавить в список
           </button>
@@ -963,6 +923,29 @@ export function Cabinet() {
             </li>
           ))}
         </ul>
+      )}
+
+      {!room.canEdit && (
+        <form className="stack-form" onSubmit={submitChange}>
+          <div className="label">
+            <Squiggle />
+            <span>запрос на изменение</span>
+          </div>
+          <label className="line">
+            <span>причина</span>
+            <input value={changeReason} onChange={(e) => setChangeReason(e.target.value)} />
+          </label>
+          <label className="line">
+            <span>что хочешь поменять</span>
+            <textarea rows={3} value={changeWhat} onChange={(e) => setChangeWhat(e.target.value)} />
+          </label>
+          <button className="fill" type="submit">
+            отправить админу
+          </button>
+          {changeRequests?.length > 0 && (
+            <p className="demo-hint">Последний статус: {changeRequests[0].status}</p>
+          )}
+        </form>
       )}
       </>
       )}

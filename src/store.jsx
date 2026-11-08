@@ -1,91 +1,80 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import {
-  assignedList,
-  canManageRoom,
-  canTuneRoom,
-  closeDraw,
-  colorById,
-  composeRoom,
-  drawRoom,
-  ensureSeat,
-  fresh,
-  isAdminUser,
-  isDrawnRoom,
-  peopleColors,
-  readBudget,
-  readCurrency,
-  themeOf,
-  themeToken,
-  uid,
-  withCount,
-  withPresence,
-  withTheme,
-} from './data'
+import { api, getToken, setToken } from './api'
+import { themeOf, themeToken } from './data'
+import { getInitData, getStartParam, haptic, initTelegram } from './telegram'
 
-const KEY = 'taino-demo-v4'
 const Ctx = createContext(null)
+const ROOM_KEY = 'taino-room-id'
 
-function load() {
-  try {
-    const raw = localStorage.getItem(KEY)
-    if (!raw) return null
-    const parsed = JSON.parse(raw)
-    if (!parsed || !Array.isArray(parsed.rooms) || parsed.rooms.length === 0) return null
-    const rooms = parsed.rooms
-      .filter((room) => room && Array.isArray(room.people) && room.people.length && room.theme)
-      .map((room) => ({
-        ...room,
-        forceDrawn: Boolean(room.forceDrawn),
-        presence: room.presence === 'out' || room.presence === 'guest' ? room.presence : 'in',
-        budget: readBudget(room.budget),
-        currency: readCurrency(room.currency),
-        people: room.people.filter(Boolean).map((person) => ({
-          ...person,
-          email: String(person.email || '').trim().toLowerCase(),
-          demo: Boolean(person.demo),
-          gifts: person.gifts || [],
-          note: person.note || '',
-          assignedPid: person.assignedPid || null,
-        })),
-      }))
-    if (!rooms.length) return null
-    const roomId = rooms.some((room) => room.id === parsed.roomId) ? parsed.roomId : rooms[0].id
-    return { user: parsed.user || null, roomId, rooms }
-  } catch {
-    return null
-  }
+const PRESENCE_FROM_MODE = {
+  ADMIN_PARTICIPATES: 'in',
+  ADMIN_NOT_PARTICIPATES: 'out',
+  ADMIN_AS_USER: 'guest',
 }
 
-function drawnMap(rooms, now = Date.now()) {
-  const map = {}
-  for (const room of rooms) {
-    if (isDrawnRoom(room, now)) map[room.id] = true
+const MODE_FROM_PRESENCE = {
+  in: 'ADMIN_PARTICIPATES',
+  out: 'ADMIN_NOT_PARTICIPATES',
+  guest: 'ADMIN_AS_USER',
+}
+
+function mapRoomSummary(summary, detail = null) {
+  const me = detail?.me
+  return {
+    id: String(summary.id),
+    numericId: summary.id,
+    code: summary.code,
+    title: summary.title,
+    theme: summary.theme,
+    phase: summary.phase,
+    adminMode: summary.adminMode,
+    presence: PRESENCE_FROM_MODE[summary.adminMode] || 'in',
+    drawAt: new Date(summary.registrationEndsAt).getTime(),
+    giftBy: new Date(summary.deliveryAt).getTime(),
+    deliveryPlace: summary.deliveryPlace || '',
+    budget: summary.budgetMin === summary.budgetMax ? summary.budgetMin : summary.budgetMax,
+    budgetMin: summary.budgetMin,
+    budgetMax: summary.budgetMax,
+    currency: summary.currency,
+    forceDrawn: summary.phase !== 'REGISTRATION',
+    drawLocked: summary.drawLocked,
+    memberCount: summary.memberCount,
+    myRole: summary.myRole,
+    participates: summary.participates,
+    hasAdminTab: summary.hasAdminTab,
+    canTune: summary.canTune,
+    people: [],
+    formLocked: me?.formLocked,
+    canEdit: me?.canEdit,
+    editWindowUntil: me?.editWindowUntil,
+    memberId: me?.memberId,
   }
-  return map
 }
 
 export function StoreProvider({ children }) {
   const navigate = useNavigate()
-  const initial = useRef(load() || fresh()).current
-  const [data, setData] = useState(initial)
+  const [boot, setBoot] = useState({ loading: true, error: null })
+  const [user, setUser] = useState(null)
+  const [rooms, setRooms] = useState([])
+  const [roomId, setRoomId] = useState(() => localStorage.getItem(ROOM_KEY) || '')
+  const [form, setForm] = useState(null)
+  const [wishlist, setWishlist] = useState({ items: [], canEdit: true })
+  const [assignment, setAssignment] = useState(null)
+  const [participants, setParticipants] = useState([])
+  const [changeRequests, setChangeRequests] = useState([])
   const [now, setNow] = useState(() => Date.now())
-  const [revealed, setRevealed] = useState(() => drawnMap(initial.rooms))
   const [fx, setFx] = useState(null)
   const [saveError, setSaveError] = useState(false)
   const mid = useRef(null)
-  const pouring = useRef(false)
-  const dataRef = useRef(data)
-  dataRef.current = data
+  const roomIdRef = useRef(roomId)
+  roomIdRef.current = roomId
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(KEY, JSON.stringify(data))
-      setSaveError(false)
-    } catch {
-      setSaveError(true)
-    }
-  }, [data])
+  const room = useMemo(
+    () => rooms.find((r) => r.id === roomId) || rooms[0] || null,
+    [rooms, roomId],
+  )
+  const theme = themeOf(room?.theme || 'newyear')
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000)
@@ -121,330 +110,418 @@ export function StoreProvider({ children }) {
     }
   }, [fx])
 
-  const room = useMemo(
-    () => data.rooms.find((item) => item.id === data.roomId) || data.rooms[0],
-    [data.rooms, data.roomId],
-  )
-  const theme = themeOf(room?.theme)
-  const email = data.user?.email?.trim().toLowerCase() || ''
-  const assignment = useMemo(() => assignedList(room, email), [room, email])
-  const seat = useMemo(
-    () => room?.people?.find((person) => person.email === email) || null,
-    [room, email],
-  )
-  const mosaic = useMemo(() => (room ? peopleColors(room) : []), [room])
-  const isRevealed = Boolean(room && revealed[room.id] && assignment)
-  const isGlobalAdmin = isAdminUser(data.user)
-  const isAdmin = canManageRoom(data.user, room)
-  const canTune = canTuneRoom(data.user, room)
+  const refreshRoomExtras = useCallback(async (numericId, summary) => {
+    if (!numericId) return
+    try {
+      const [formRes, wishRes, assignRes] = await Promise.all([
+        api.form(numericId).catch(() => null),
+        api.wishlist(numericId).catch(() => ({ items: [], canEdit: false })),
+        api.assignment(numericId).catch(() => null),
+      ])
+      setForm(formRes)
+      setWishlist(wishRes || { items: [], canEdit: false })
+      setAssignment(assignRes)
 
-  useEffect(() => {
-    const current = dataRef.current.rooms.find((item) => item.id === dataRef.current.roomId) || dataRef.current.rooms[0]
-    const viewer = dataRef.current.user?.email?.trim().toLowerCase()
-    if (!current || !viewer || !isDrawnRoom(current, now)) return undefined
-    if (revealed[current.id]) return undefined
-    const me = current.people.find((person) => person.email === viewer)
-    const target = me && current.people.find((person) => person.pid === me.assignedPid)
-    if (!target || pouring.current) return undefined
-    pouring.current = true
-    const color = colorById(current.theme, target.colorId)
-    transition(color, () => {
-      pouring.current = false
-      setRevealed((prev) => ({ ...prev, [current.id]: true }))
-      navigate('/')
-      window.scrollTo(0, 0)
-    })
-    return undefined
-  }, [now, data.roomId, data.rooms, data.user, revealed, transition, navigate])
-
-  useEffect(() => {
-    if (!data.user) return
-    setData((prev) => {
-      const current = prev.rooms.find((item) => item.id === prev.roomId)
-      if (!current) return prev
-      const next = ensureSeat(current, prev.user)
-      if (next === current) return prev
-      return {
-        ...prev,
-        rooms: prev.rooms.map((item) => (item.id === current.id ? next : item)),
+      if (summary?.hasAdminTab) {
+        const [people, reqs] = await Promise.all([
+          api.adminParticipants(numericId).catch(() => ({ participants: [] })),
+          api.adminChangeRequests(numericId).catch(() => ({ items: [] })),
+        ])
+        setParticipants(people.participants || [])
+        setChangeRequests(reqs.items || [])
+      } else {
+        setParticipants([])
+        const mine = await api.changeRequests(numericId).catch(() => ({ items: [] }))
+        setChangeRequests(mine.items || [])
       }
-    })
-  }, [data.user, data.roomId])
+    } catch {
+      setSaveError(true)
+    }
+  }, [])
+
+  const loadRooms = useCallback(async (preferredId) => {
+    const list = await api.rooms()
+    const mapped = []
+    for (const summary of list) {
+      let detail = null
+      try {
+        detail = await api.room(summary.id)
+      } catch {
+        detail = null
+      }
+      mapped.push(mapRoomSummary(detail?.room || summary, detail))
+    }
+    setRooms(mapped)
+    const preferred = preferredId || localStorage.getItem(ROOM_KEY)
+    const next =
+      mapped.find((r) => String(r.numericId) === String(preferred) || r.id === preferred)?.id ||
+      mapped[0]?.id ||
+      ''
+    setRoomId(next)
+    if (next) localStorage.setItem(ROOM_KEY, next)
+    const current = mapped.find((r) => r.id === next)
+    if (current) await refreshRoomExtras(current.numericId, current)
+    return mapped
+  }, [refreshRoomExtras])
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        await initTelegram()
+        let initData = getInitData()
+        // Dev fallback: paste initData via ?initData= or localStorage
+        if (!initData) initData = localStorage.getItem('taino-dev-init-data') || ''
+        if (!initData) {
+          if (!cancelled) {
+            setBoot({
+              loading: false,
+              error:
+                'Открой приложение из Telegram Mini App или сохрани initData в localStorage (taino-dev-init-data).',
+            })
+          }
+          return
+        }
+        if (!getToken()) {
+          const auth = await api.login(initData)
+          setToken(auth.accessToken)
+          setUser(auth.user)
+        } else {
+          try {
+            const me = await api.me()
+            setUser(me)
+          } catch {
+            const auth = await api.login(initData)
+            setToken(auth.accessToken)
+            setUser(auth.user)
+          }
+        }
+
+        const start = getStartParam()
+        if (start.startsWith('room_')) {
+          try {
+            await api.joinRoom(start.slice(5))
+          } catch {
+            // ignore invalid code
+          }
+        }
+
+        if (!cancelled) {
+          await loadRooms()
+          setBoot({ loading: false, error: null })
+        }
+      } catch (err) {
+        if (!cancelled) setBoot({ loading: false, error: err.message || 'Ошибка входа' })
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [loadRooms])
+
+  useEffect(() => {
+    if (!room?.numericId) return
+    refreshRoomExtras(room.numericId, room)
+  }, [room?.numericId, room?.phase, refreshRoomExtras])
 
   const focusRoom = useCallback(
     (id, to = '/') => {
-      const target = dataRef.current.rooms.find((item) => item.id === id)
+      const target = rooms.find((item) => item.id === id || String(item.numericId) === String(id))
       if (!target) return
-      const same = dataRef.current.roomId === id
       const go = () => {
-        setData((prev) => ({ ...prev, roomId: id }))
+        setRoomId(target.id)
+        localStorage.setItem(ROOM_KEY, target.id)
         navigate(to)
         window.scrollTo(0, 0)
+        refreshRoomExtras(target.numericId, target)
       }
-      if (same) {
+      if (roomId === target.id) {
         navigate(to)
-        window.scrollTo(0, 0)
         return
       }
       transition(themeToken(target.theme), go)
     },
-    [navigate, transition],
+    [rooms, roomId, navigate, transition, refreshRoomExtras],
   )
 
-  const enter = useCallback((name, email) => {
-    setData((prev) => ({
-      ...prev,
-      user: { name: name.trim(), email: email.trim().toLowerCase() },
-    }))
-  }, [])
-
-  const logout = useCallback(() => {
-    setData((prev) => ({ ...prev, user: null }))
-  }, [])
-
-  const mapSeat = useCallback((roomId, user, fn) => {
-    const mail = user?.email?.trim().toLowerCase()
-    if (!mail) return
-    setData((prev) => ({
-      ...prev,
-      rooms: prev.rooms.map((item) => {
-        if (item.id !== roomId) return item
-        const seated = ensureSeat(item, user)
-        return {
-          ...seated,
-          people: seated.people.map((person) => (person.email === mail ? fn(person) : person)),
-        }
-      }),
-    }))
-  }, [])
-
-  const setNote = useCallback((myNote) => {
-    const user = dataRef.current.user
-    if (isAdminUser(user) && dataRef.current.rooms.find((item) => item.id === dataRef.current.roomId)?.presence === 'out') return
-    mapSeat(dataRef.current.roomId, user, (person) => ({ ...person, note: myNote }))
-  }, [mapSeat])
-
-  const addGift = useCallback((gift) => {
-    const user = dataRef.current.user
-    const current = dataRef.current.rooms.find((item) => item.id === dataRef.current.roomId)
-    if (!user || (isAdminUser(user) && current?.presence === 'out')) return
-    mapSeat(dataRef.current.roomId, user, (person) => ({
-      ...person,
-      gifts: [...person.gifts, { ...gift, id: uid() }].slice(0, 12),
-    }))
-  }, [mapSeat])
-
-  const removeGift = useCallback((giftId) => {
-    const user = dataRef.current.user
-    mapSeat(dataRef.current.roomId, user, (person) => ({
-      ...person,
-      gifts: person.gifts.filter((gift) => gift.id !== giftId),
-    }))
-  }, [mapSeat])
-
-  const patchPerson = useCallback((pid, patch) => {
-    const current = dataRef.current.rooms.find((item) => item.id === dataRef.current.roomId)
-    if (!canManageRoom(dataRef.current.user, current)) return
-    setData((prev) => ({
-      ...prev,
-      rooms: prev.rooms.map((item) =>
-        item.id === current.id
-          ? {
-              ...item,
-              people: item.people.map((person) => (person.pid === pid ? { ...person, ...patch, pid: person.pid, email: person.email } : person)),
-            }
-          : item,
-      ),
-    }))
-  }, [])
-
-  const addPersonGift = useCallback((pid, gift) => {
-    const current = dataRef.current.rooms.find((item) => item.id === dataRef.current.roomId)
-    if (!canManageRoom(dataRef.current.user, current)) return
-    setData((prev) => ({
-      ...prev,
-      rooms: prev.rooms.map((item) =>
-        item.id === current.id
-          ? {
-              ...item,
-              people: item.people.map((person) =>
-                person.pid === pid ? { ...person, gifts: [...person.gifts, { ...gift, id: uid() }].slice(0, 12) } : person,
-              ),
-            }
-          : item,
-      ),
-    }))
-  }, [])
-
-  const removePersonGift = useCallback((pid, giftId) => {
-    const current = dataRef.current.rooms.find((item) => item.id === dataRef.current.roomId)
-    if (!canManageRoom(dataRef.current.user, current)) return
-    setData((prev) => ({
-      ...prev,
-      rooms: prev.rooms.map((item) =>
-        item.id === current.id
-          ? {
-              ...item,
-              people: item.people.map((person) =>
-                person.pid === pid ? { ...person, gifts: person.gifts.filter((gift) => gift.id !== giftId) } : person,
-              ),
-            }
-          : item,
-      ),
-    }))
-  }, [])
-
-  const updateRoom = useCallback((patch) => {
-    const id = dataRef.current.roomId
-    const current = dataRef.current.rooms.find((item) => item.id === id)
-    if (!canTuneRoom(dataRef.current.user, current)) return
-    setData((prev) => ({
-      ...prev,
-      rooms: prev.rooms.map((item) => {
-        if (item.id !== id) return item
-        let next = item
-        if (typeof patch.presence === 'string') next = withPresence(next, patch.presence)
-        if (patch.theme && patch.theme !== next.theme) next = withTheme(next, patch.theme)
-        if (typeof patch.count === 'number' && !isDrawnRoom(next)) next = withCount(next, patch.count)
-        if (typeof patch.title === 'string') next = { ...next, title: patch.title }
-        if (typeof patch.budget === 'number') next = { ...next, budget: readBudget(patch.budget) }
-        if (typeof patch.currency === 'string') next = { ...next, currency: readCurrency(patch.currency) }
-        if (typeof patch.drawAt === 'number') next = { ...next, drawAt: patch.drawAt }
-        if (typeof patch.giftBy === 'number') next = { ...next, giftBy: patch.giftBy }
-        if (next.giftBy <= next.drawAt) next = { ...next, giftBy: next.drawAt + 86400000 }
-        if (typeof patch.drawAt === 'number' && patch.drawAt > Date.now()) next = closeDraw(next, patch.drawAt)
-        return next
-      }),
-    }))
-    if (typeof patch.drawAt === 'number' && patch.drawAt > Date.now()) {
-      setRevealed((prev) => ({ ...prev, [id]: false }))
-    }
-  }, [])
-
   const createRoom = useCallback(
-    (spec) => {
-      if (!isAdminUser(dataRef.current.user)) return
-      const id = uid()
-      const roomNext = composeRoom({
-        ...spec,
-        id,
-        forceDrawn: false,
-        myGifts: [],
-        myNote: '',
-        giftShift: Math.floor(Math.random() * 8),
-        createdAt: Date.now(),
-      })
-      transition(themeToken(roomNext.theme), () => {
-        setData((prev) => ({
-          ...prev,
-          roomId: roomNext.id,
-          rooms: [roomNext, ...prev.rooms],
-        }))
+    async (spec) => {
+      const body = {
+        title: spec.title,
+        theme: spec.theme,
+        adminMode: MODE_FROM_PRESENCE[spec.presence] || 'ADMIN_PARTICIPATES',
+        registrationEndsAt: new Date(spec.drawAt).toISOString(),
+        deliveryAt: new Date(spec.giftBy).toISOString(),
+        deliveryPlace: spec.deliveryPlace || '',
+        budgetMin: Number(spec.budget) || 0,
+        budgetMax: Number(spec.budget) || 0,
+        currency: spec.currency || 'BYN',
+      }
+      const detail = await api.createRoom(body)
+      haptic('success')
+      await loadRooms(detail.room.id)
+      transition(themeToken(detail.room.theme), () => {
         navigate('/')
         window.scrollTo(0, 0)
       })
     },
-    [navigate, transition],
+    [loadRooms, navigate, transition],
   )
 
-  const drawNow = useCallback(() => {
-    const current = dataRef.current.rooms.find((item) => item.id === dataRef.current.roomId)
-    if (!canManageRoom(dataRef.current.user, current) || isDrawnRoom(current) || current.people.length < 2) return
-    const next = drawRoom(current)
-    setData((prev) => ({
-      ...prev,
-      rooms: prev.rooms.map((item) => (item.id === current.id ? next : item)),
-    }))
-  }, [])
-
-  const undraw = useCallback(() => {
-    const current = dataRef.current.rooms.find((item) => item.id === dataRef.current.roomId)
-    if (!canManageRoom(dataRef.current.user, current)) return
-    pouring.current = false
-    setRevealed((prev) => ({ ...prev, [current.id]: false }))
-    setData((prev) => ({
-      ...prev,
-      rooms: prev.rooms.map((item) => {
-        if (item.id !== current.id) return item
-        const drawAt = item.drawAt > Date.now() ? item.drawAt : Date.now() + 3 * 86400000
-        return closeDraw(item, drawAt)
-      }),
-    }))
-  }, [])
-
-  const reset = useCallback(() => {
-    const token = themeToken(dataRef.current.rooms.find((item) => item.id === dataRef.current.roomId)?.theme)
-    transition(token, () => {
-      const next = fresh()
-      setData(next)
-      setRevealed(drawnMap(next.rooms))
-      pouring.current = false
+  const joinByCode = useCallback(
+    async (code) => {
+      const detail = await api.joinRoom(code.trim())
+      haptic('success')
+      await loadRooms(detail.room.id)
       navigate('/')
-      window.scrollTo(0, 0)
-    })
-  }, [navigate, transition])
+    },
+    [loadRooms, navigate],
+  )
+
+  const updateRoom = useCallback(
+    async (patch) => {
+      if (!room?.numericId || !room.canTune) return
+      const body = {}
+      if (typeof patch.title === 'string') body.title = patch.title
+      if (patch.theme) body.theme = patch.theme
+      if (typeof patch.presence === 'string') body.adminMode = MODE_FROM_PRESENCE[patch.presence]
+      if (typeof patch.drawAt === 'number') body.registrationEndsAt = new Date(patch.drawAt).toISOString()
+      if (typeof patch.giftBy === 'number') body.deliveryAt = new Date(patch.giftBy).toISOString()
+      if (typeof patch.budget === 'number') {
+        body.budgetMin = patch.budget
+        body.budgetMax = patch.budget
+      }
+      if (typeof patch.currency === 'string') body.currency = patch.currency
+      if (typeof patch.deliveryPlace === 'string') body.deliveryPlace = patch.deliveryPlace
+      await api.updateRoom(room.numericId, body)
+      await loadRooms(room.numericId)
+    },
+    [room, loadRooms],
+  )
+
+  const setNote = useCallback(
+    async (note) => {
+      if (!room?.numericId) return
+      const next = await api.updateForm(room.numericId, { note })
+      setForm(next)
+    },
+    [room],
+  )
+
+  const addGift = useCallback(
+    async (gift) => {
+      if (!room?.numericId) return
+      let imageId = null
+      if (gift.file) {
+        const uploaded = await api.uploadImage(room.numericId, gift.file)
+        imageId = uploaded.id
+        await api.addWishlistItem(room.numericId, {
+          type: 'IMAGE',
+          title: gift.title,
+          imageId,
+          url: gift.url || null,
+        })
+      } else if (gift.url) {
+        await api.addWishlistItem(room.numericId, {
+          type: 'LINK',
+          title: gift.title,
+          url: gift.url,
+        })
+      } else {
+        await api.addWishlistItem(room.numericId, {
+          type: 'TEXT',
+          title: gift.title,
+          body: gift.note || '',
+        })
+      }
+      haptic('light')
+      const wish = await api.wishlist(room.numericId)
+      setWishlist(wish)
+    },
+    [room],
+  )
+
+  const removeGift = useCallback(
+    async (giftId) => {
+      if (!room?.numericId) return
+      await api.removeWishlistItem(room.numericId, giftId)
+      const wish = await api.wishlist(room.numericId)
+      setWishlist(wish)
+    },
+    [room],
+  )
+
+  const drawNow = useCallback(async () => {
+    if (!room?.numericId || !room.hasAdminTab) return
+    await api.adminDraw(room.numericId, { redraw: false })
+    haptic('success')
+    await loadRooms(room.numericId)
+  }, [room, loadRooms])
+
+  const undraw = useCallback(async () => {
+    if (!room?.numericId || !room.hasAdminTab) return
+    await api.adminDraw(room.numericId, { redraw: true })
+    await loadRooms(room.numericId)
+  }, [room, loadRooms])
+
+  const requestChange = useCallback(
+    async (reason, requestedChanges) => {
+      if (!room?.numericId) return
+      await api.createChangeRequest(room.numericId, { reason, requestedChanges })
+      const mine = await api.changeRequests(room.numericId)
+      setChangeRequests(mine.items || [])
+    },
+    [room],
+  )
+
+  const decideChange = useCallback(
+    async (requestId, approve, adminNote) => {
+      if (!room?.numericId) return
+      await api.decideChangeRequest(room.numericId, requestId, {
+        approve,
+        adminNote,
+        editWindowHours: 2,
+      })
+      const reqs = await api.adminChangeRequests(room.numericId)
+      setChangeRequests(reqs.items || [])
+      await refreshRoomExtras(room.numericId, room)
+    },
+    [room, refreshRoomExtras],
+  )
+
+  const kickMember = useCallback(
+    async (memberId) => {
+      if (!room?.numericId) return
+      await api.kick(room.numericId, memberId)
+      const people = await api.adminParticipants(room.numericId)
+      setParticipants(people.participants || [])
+    },
+    [room],
+  )
+
+  const logout = useCallback(() => {
+    setToken('')
+    setUser(null)
+    setRooms([])
+    setRoomId('')
+  }, [])
+
+  const seat = useMemo(() => {
+    if (!form && !wishlist) return null
+    return {
+      pid: room?.memberId,
+      name: form?.displayName || user?.firstName || '',
+      note: form?.note || '',
+      gifts: (wishlist.items || []).map((item) => ({
+        id: item.id,
+        title: item.title,
+        url: item.url || '',
+        photo: item.imageUrl || '',
+      })),
+    }
+  }, [form, wishlist, room, user])
+
+  const assignmentView = useMemo(() => {
+    if (!assignment?.available) return null
+    return {
+      name: '',
+      note: assignment.note || '',
+      gifts: (assignment.wishlist || []).map((item, index) => ({
+        id: `${index}-${item.title}`,
+        title: item.title,
+        url: item.url || '',
+        photo: item.imageUrl || '',
+      })),
+      budgetMin: assignment.budgetMin,
+      budgetMax: assignment.budgetMax,
+      currency: assignment.currency,
+      deliveryAt: assignment.deliveryAt,
+      deliveryPlace: assignment.deliveryPlace,
+    }
+  }, [assignment])
+
+  const isRevealed = Boolean(assignmentView)
+  const isAdmin = Boolean(room?.hasAdminTab)
+  const canTune = Boolean(room?.canTune)
+  const isGlobalAdmin = Boolean(room?.myRole === 'OWNER')
 
   const value = useMemo(
     () => ({
-      data,
+      boot,
+      data: { user, rooms, roomId },
       now,
       room,
-      rooms: data.rooms,
+      rooms,
       theme,
       fx,
       saveError,
-      mosaic,
-      assignment,
+      mosaic: [],
+      assignment: assignmentView,
       isRevealed,
       isAdmin,
       isGlobalAdmin,
       canTune,
       seat,
+      form,
+      wishlist,
+      participants,
+      changeRequests,
       transition,
       focusRoom,
-      enter,
+      enter: () => {},
       logout,
       setNote,
       addGift,
       removeGift,
-      patchPerson,
-      addPersonGift,
-      removePersonGift,
+      patchPerson: () => {},
+      addPersonGift: () => {},
+      removePersonGift: () => {},
       updateRoom,
       createRoom,
+      joinByCode,
       drawNow,
       undraw,
-      reset,
+      reset: logout,
+      requestChange,
+      decideChange,
+      kickMember,
+      reload: () => loadRooms(room?.numericId),
     }),
     [
-      data,
+      boot,
+      user,
+      rooms,
+      roomId,
       now,
       room,
       theme,
       fx,
       saveError,
-      mosaic,
-      assignment,
+      assignmentView,
       isRevealed,
       isAdmin,
       isGlobalAdmin,
       canTune,
       seat,
+      form,
+      wishlist,
+      participants,
+      changeRequests,
       transition,
       focusRoom,
-      enter,
       logout,
       setNote,
       addGift,
       removeGift,
-      patchPerson,
-      addPersonGift,
-      removePersonGift,
       updateRoom,
       createRoom,
+      joinByCode,
       drawNow,
       undraw,
-      reset,
+      requestChange,
+      decideChange,
+      kickMember,
+      loadRooms,
     ],
   )
 
