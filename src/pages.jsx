@@ -66,7 +66,25 @@ export function Home() {
   const go = useGo()
   useTitle(isRevealed ? 'тебе выпало' : room?.title || 'Тайно')
 
-  if (!room) return null
+  if (!room) {
+    return (
+      <section className="hero">
+        <div className="hero-copy">
+          <p className="crumb">Тайно</p>
+          <h1>Нет активной комнаты</h1>
+          <p className="note">Создай комнату или войди по коду — и раздача пойдёт сама.</p>
+          <div className="row-actions">
+            <button className="fill" type="button" onClick={() => go('/rooms/new')}>
+              создать комнату
+            </button>
+            <button className="text-btn" type="button" onClick={() => go('/enter')}>
+              есть код
+            </button>
+          </div>
+        </div>
+      </section>
+    )
+  }
 
   const budget = money(room.budget, room.currency)
   const drawn = isDrawnRoom(room, now)
