@@ -241,7 +241,7 @@ export function Header() {
             <span className="short">мои</span>
           </button>
           <button className="circle letter" type="button" aria-label="личный кабинет" onClick={onAccount}>
-            {user ? user.name.slice(0, 1).toUpperCase() : <Person />}
+            {user ? (user.firstName || user.username || '?').slice(0, 1).toUpperCase() : <Person />}
           </button>
         </div>
       </header>
