@@ -172,6 +172,71 @@ function Person() {
   )
 }
 
+function IconHome({ active }) {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5.2v-6.2H10.2V21H5a1 1 0 0 1-1-1v-9.5Z"
+        stroke="currentColor"
+        strokeWidth={active ? 2 : 1.5}
+        strokeLinejoin="round"
+        fill={active ? 'currentColor' : 'none'}
+        fillOpacity={active ? 0.14 : 0}
+      />
+    </svg>
+  )
+}
+
+function IconDoor({ active }) {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M6 21V5.8A1.8 1.8 0 0 1 7.8 4H16v17"
+        stroke="currentColor"
+        strokeWidth={active ? 2 : 1.5}
+        strokeLinecap="round"
+      />
+      <path d="M16 4h1.2A1.8 1.8 0 0 1 19 5.8V21H6" stroke="currentColor" strokeWidth={active ? 2 : 1.5} strokeLinecap="round" />
+      <circle cx="14.2" cy="12.2" r="0.9" fill="currentColor" />
+    </svg>
+  )
+}
+
+function IconGift({ active }) {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="4" y="10" width="16" height="10" rx="1.5" stroke="currentColor" strokeWidth={active ? 2 : 1.5} />
+      <path d="M3.5 10h17V8.2A1.2 1.2 0 0 0 19.3 7H4.7A1.2 1.2 0 0 0 3.5 8.2V10Z" stroke="currentColor" strokeWidth={active ? 2 : 1.5} />
+      <path d="M12 7v13M12 7c0-2.2-1.4-3.5-3.1-3.5S6 5.2 6 7c0 1.4 1.4 2.4 3.2 2.8M12 7c0-2.2 1.4-3.5 3.1-3.5S18 5.2 18 7c0 1.4-1.4 2.4-3.2 2.8" stroke="currentColor" strokeWidth={active ? 2 : 1.5} strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function IconPeople({ active }) {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="9" cy="8" r="2.6" stroke="currentColor" strokeWidth={active ? 2 : 1.5} />
+      <circle cx="16.2" cy="9" r="2.1" stroke="currentColor" strokeWidth={active ? 2 : 1.5} />
+      <path d="M3.8 18.5c.6-2.8 2.7-4.3 5.2-4.3s4.6 1.5 5.2 4.3" stroke="currentColor" strokeWidth={active ? 2 : 1.5} strokeLinecap="round" />
+      <path d="M13.2 14.6c1.1-.5 2.3-.7 3.5-.5 1.8.3 3.2 1.5 3.7 3.4" stroke="currentColor" strokeWidth={active ? 2 : 1.5} strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function IconGear({ active }) {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth={active ? 2 : 1.5} />
+      <path
+        d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M5.6 5.6l1.6 1.6M16.8 16.8l1.6 1.6M18.4 5.6l-1.6 1.6M7.2 16.8l-1.6 1.6"
+        stroke="currentColor"
+        strokeWidth={active ? 2 : 1.5}
+        strokeLinecap="round"
+      />
+    </svg>
+  )
+}
+
 export function Header() {
   const { data, room, isRevealed, isAdmin, canTune } = useStore()
   const go = useGo()
@@ -202,11 +267,6 @@ export function Header() {
 
   function onColors() {
     setOpen(false)
-    const node = document.getElementById('colors')
-    if (node && (location.pathname === '/room' || location.pathname === '/colors')) {
-      node.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      return
-    }
     go('/colors', token)
   }
 
@@ -215,10 +275,31 @@ export function Header() {
     travel(user ? '/cabinet' : '/enter')
   }
 
+  const path = location.pathname
+  const tabs = [
+    { id: 'rooms', to: '/', label: 'Комнаты', icon: IconHome, match: path === '/' },
+    room
+      ? { id: 'room', to: '/room', label: 'Комната', icon: IconDoor, match: path === '/room' }
+      : null,
+    {
+      id: 'wish',
+      to: user ? '/cabinet' : '/enter',
+      label: 'Вишлист',
+      icon: IconGift,
+      match: path === '/cabinet' || path === '/enter',
+    },
+    isAdmin
+      ? { id: 'people', to: '/colors', label: 'Люди', icon: IconPeople, match: path === '/colors' }
+      : null,
+    canTune
+      ? { id: 'admin', to: '/admin', label: 'Ещё', icon: IconGear, match: path === '/admin' }
+      : null,
+  ].filter(Boolean)
+
   return (
     <>
       <Lines />
-      <header className="top">
+      <header className="top top-simple">
         <button className="circle menu-btn" type="button" aria-label={open ? 'закрыть меню' : 'меню'} aria-expanded={open} onClick={() => setOpen((value) => !value)}>
           <Burger open={open} />
         </button>
@@ -231,21 +312,7 @@ export function Header() {
             имён
           </span>
         </button>
-        <div className="top-actions">
-          {isAdmin && (
-            <button className="quiet blend" type="button" onClick={onColors}>
-              <span className="full">участники</span>
-              <span className="short">люди</span>
-            </button>
-          )}
-          <button className="quiet blend" type="button" onClick={() => travel('/')}>
-            <span className="full">комнаты</span>
-            <span className="short">мои</span>
-          </button>
-          <button className="circle letter" type="button" aria-label="мой вишлист" onClick={onAccount}>
-            {user ? (user.firstName || user.username || '?').slice(0, 1).toUpperCase() : <Person />}
-          </button>
-        </div>
+        <span className="top-spacer" aria-hidden="true" />
       </header>
       {open && (
         <nav className="menu">
@@ -254,6 +321,11 @@ export function Header() {
             <button type="button" className="menu-link" onClick={() => travel('/')}>
               Комнаты
             </button>
+            {room && (
+              <button type="button" className="menu-link" onClick={() => travel('/room')}>
+                Комната
+              </button>
+            )}
             {isAdmin && (
               <button type="button" className="menu-link" onClick={onColors}>
                 Участники
@@ -272,8 +344,27 @@ export function Header() {
             </button>
           </div>
           <div className="menu-foot">
-            <span>{room ? `${room.title} · ${isRevealed ? 'список открыт' : 'ждём срок'}` : 'выбери комнату'}</span>
+            <span>{room ? `${room.title} · ${isRevealed ? 'список открыт' : 'скоро'}` : 'выбери комнату'}</span>
           </div>
+        </nav>
+      )}
+      {!open && (
+        <nav className="tabbar" aria-label="основная навигация">
+          {tabs.map((tab) => {
+            const Icon = tab.icon
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                className={tab.match ? 'tab on' : 'tab'}
+                aria-current={tab.match ? 'page' : undefined}
+                onClick={() => travel(tab.to)}
+              >
+                <Icon active={tab.match} />
+                <span>{tab.label}</span>
+              </button>
+            )
+          })}
         </nav>
       )}
     </>

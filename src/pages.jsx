@@ -371,10 +371,12 @@ export function Rules() {
   useTitle('правила')
   return (
     <section className="sheet rules-page">
-      <div className="blob blob-a" />
-      <p className="crumb">как это работает</p>
-      <h1>Правила</h1>
-      <p className="note">Анонимный Тайный Санта: вишлисты без имён, раздача по цвету.</p>
+      <div className="blob blob-a" aria-hidden="true" />
+      <div className="rules-copy">
+        <p className="crumb">как это работает</p>
+        <h1>Правила</h1>
+        <p className="note">Анонимный Тайный Санта: вишлисты без имён, раздача по цвету.</p>
+      </div>
       <div className="rules" id="rules">
         <ol>
           <li>
@@ -384,7 +386,7 @@ export function Rules() {
           </li>
           <li>
             <b>02</b>
-            <h2>Ждёшь общий срок</h2>
+            <h2>Скоро раздача</h2>
             <p>Пока таймер не дошёл, чужие списки закрыты. Новый человек не выдаёт себя цветом.</p>
           </li>
           <li>
@@ -399,7 +401,7 @@ export function Rules() {
           </li>
         </ol>
       </div>
-    </section>
+      </section>
   )
 }
 
@@ -690,7 +692,7 @@ export function Rooms() {
                 </p>
                 <h2>{item.title}</h2>
                 <span className="band-more">
-                  {peopleCount(item.memberCount || 0)} · {drawn ? 'список выпал' : 'ждём раздачу'}
+                  {peopleCount(item.memberCount || 0)} · {drawn ? 'список выпал' : 'скоро'}
                   {item.budget ? ` · ${money(item.budget, item.currency)}` : ''}
                   {item.code ? ` · код ${item.code}` : ''}
                 </span>
