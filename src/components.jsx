@@ -203,7 +203,7 @@ export function Header() {
   function onColors() {
     setOpen(false)
     const node = document.getElementById('colors')
-    if (node && (location.pathname === '/' || location.pathname === '/colors')) {
+    if (node && (location.pathname === '/room' || location.pathname === '/colors')) {
       node.scrollIntoView({ behavior: 'smooth', block: 'start' })
       return
     }
@@ -238,10 +238,16 @@ export function Header() {
               <span className="short">люди</span>
             </button>
           )}
-          <button className="quiet blend" type="button" onClick={() => travel('/rooms')}>
+          <button className="quiet blend" type="button" onClick={() => travel('/')}>
             <span className="full">комнаты</span>
             <span className="short">мои</span>
           </button>
+          {room && (
+            <button className="quiet blend" type="button" onClick={() => travel('/room')}>
+              <span className="full">лобби</span>
+              <span className="short">зал</span>
+            </button>
+          )}
           <button className="circle letter" type="button" aria-label="мой вишлист" onClick={onAccount}>
             {user ? (user.firstName || user.username || '?').slice(0, 1).toUpperCase() : <Person />}
           </button>
@@ -252,16 +258,18 @@ export function Header() {
           <div className="blob blob-menu" />
           <div className="menu-links">
             <button type="button" className="menu-link" onClick={() => travel('/')}>
-              Главная
+              Комнаты
             </button>
+            {room && (
+              <button type="button" className="menu-link" onClick={() => travel('/room')}>
+                Лобби
+              </button>
+            )}
             {isAdmin && (
               <button type="button" className="menu-link" onClick={onColors}>
                 Участники
               </button>
             )}
-            <button type="button" className="menu-link" onClick={() => travel('/rooms')}>
-              Комнаты
-            </button>
             <button type="button" className="menu-link" onClick={onAccount}>
               Мой вишлист
             </button>

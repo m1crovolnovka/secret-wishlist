@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import { Header, Pour, ScrollReset } from './components'
-import { Admin, Cabinet, Colors, Enter, Home, NewRoom, Rooms } from './pages'
+import { Admin, Cabinet, Colors, Enter, NewRoom, RoomLobby, Rooms } from './pages'
 import { useStore } from './store'
 import { showBackButton } from './telegram'
 
@@ -50,15 +50,16 @@ export default function App() {
       <ScrollReset />
       <main>
         <Routes>
-          <Route path="/" element={<Home />} />
+          <Route path="/" element={<Rooms />} />
+          <Route path="/room" element={<RoomLobby />} />
           <Route path="/colors" element={<Colors />} />
-          <Route path="/rooms" element={<Rooms />} />
+          <Route path="/rooms" element={<Navigate to="/" replace />} />
           <Route path="/rooms/new" element={<NewRoom />} />
           <Route path="/admin" element={<Admin />} />
           <Route path="/cabinet" element={<Cabinet />} />
           <Route path="/enter" element={<Enter />} />
           <Route path="/lists" element={<Navigate to="/colors" replace />} />
-          <Route path="/list/:id" element={<Navigate to="/" replace />} />
+          <Route path="/list/:id" element={<Navigate to="/room" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

@@ -913,6 +913,43 @@ h1, h2, .menu-link, .theme-copy strong { font-weight: 500; }
 
 .wish-form { margin-bottom: 4vh; }
 
+.wish-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transform: translateY(12px);
+  transition:
+    grid-template-rows 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.4s ease,
+    transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+}
+
+.wish-panel.open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.wish-panel-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.wish-inline {
+  padding-top: 8px;
+  padding-bottom: 48px;
+  min-height: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wish-panel {
+    transition: none;
+    transform: none;
+  }
+}
+
 .themes {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
