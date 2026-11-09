@@ -363,11 +363,19 @@ export function RoomLobby() {
         </div>
       </div>
 
-      <section className="rules" id="rules">
-        <div className="label">
-          <Squiggle />
-          <span>правила</span>
-        </div>
+    </>
+  )
+}
+
+export function Rules() {
+  useTitle('правила')
+  return (
+    <section className="sheet rules-page">
+      <div className="blob blob-a" />
+      <p className="crumb">как это работает</p>
+      <h1>Правила</h1>
+      <p className="note">Анонимный Тайный Санта: вишлисты без имён, раздача по цвету.</p>
+      <div className="rules" id="rules">
         <ol>
           <li>
             <b>01</b>
@@ -390,8 +398,8 @@ export function RoomLobby() {
             <p>К дате вручения. Твой список так же уйдёт кому-то одному, без твоего имени.</p>
           </li>
         </ol>
-      </section>
-    </>
+      </div>
+    </section>
   )
 }
 
@@ -1248,7 +1256,7 @@ export function Cabinet() {
               Мои комнаты
             </button>
             <button className="text-btn" type="button" onClick={() => go('/room')}>
-              В лобби
+              В комнату
             </button>
             <button className="text-btn" type="button" onClick={() => go('/enter')}>
               Другой код
