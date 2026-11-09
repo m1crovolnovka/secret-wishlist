@@ -202,12 +202,16 @@ function IconDoor({ active }) {
   )
 }
 
-function IconGift({ active }) {
+function IconProfile({ active }) {
   return (
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <rect x="4" y="10" width="16" height="10" rx="1.5" stroke="currentColor" strokeWidth={active ? 2 : 1.5} />
-      <path d="M3.5 10h17V8.2A1.2 1.2 0 0 0 19.3 7H4.7A1.2 1.2 0 0 0 3.5 8.2V10Z" stroke="currentColor" strokeWidth={active ? 2 : 1.5} />
-      <path d="M12 7v13M12 7c0-2.2-1.4-3.5-3.1-3.5S6 5.2 6 7c0 1.4 1.4 2.4 3.2 2.8M12 7c0-2.2 1.4-3.5 3.1-3.5S18 5.2 18 7c0 1.4-1.4 2.4-3.2 2.8" stroke="currentColor" strokeWidth={active ? 2 : 1.5} strokeLinecap="round" />
+      <circle cx="12" cy="8.2" r="3.2" stroke="currentColor" strokeWidth={active ? 2 : 1.5} />
+      <path
+        d="M5 19.2c.9-3.4 3.4-5.1 7-5.1s6.1 1.7 7 5.1"
+        stroke="currentColor"
+        strokeWidth={active ? 2 : 1.5}
+        strokeLinecap="round"
+      />
     </svg>
   )
 }
@@ -282,10 +286,10 @@ export function Header() {
       ? { id: 'room', to: '/room', label: 'Комната', icon: IconDoor, match: path === '/room' }
       : null,
     {
-      id: 'wish',
+      id: 'profile',
       to: user ? '/cabinet' : '/enter',
-      label: 'Вишлист',
-      icon: IconGift,
+      label: 'Профиль',
+      icon: IconProfile,
       match: path === '/cabinet' || path === '/enter',
     },
     isAdmin
@@ -332,7 +336,7 @@ export function Header() {
               </button>
             )}
             <button type="button" className="menu-link" onClick={onAccount}>
-              Мой вишлист
+              Профиль
             </button>
             {canTune && (
               <button type="button" className="menu-link" onClick={() => travel('/admin')}>

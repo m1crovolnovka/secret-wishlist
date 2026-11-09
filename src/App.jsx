@@ -36,10 +36,6 @@ export default function App() {
       <main className="boot-screen">
         <h1>Тайно</h1>
         <p>{boot.error}</p>
-        <p className="muted">
-          Для локальной отладки: сохрани валидный initData в{' '}
-          <code>localStorage.taino-dev-init-data</code>
-        </p>
       </main>
     )
   }
