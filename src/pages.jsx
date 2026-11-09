@@ -71,7 +71,8 @@ function InviteShare({ room }) {
         <span>пригласить в комнату</span>
       </div>
       <p className="note">
-        Ссылка сразу открывает Mini App в этой комнате. Код: <b>{room.code}</b>
+        Ссылка открывает Mini App в комнате и пишет боту в чат — потом можно зайти снова из диалога. Код:{' '}
+        <b>{room.code}</b>
       </p>
       <button className="text-btn" type="button" onClick={copy}>
         {invite ? 'Скопировать ссылку' : 'Скопировать код'}
