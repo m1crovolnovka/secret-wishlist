@@ -39,7 +39,11 @@ h1, h2 { overflow-wrap: break-word; }
   outline-offset: 3px;
 }
 
-main { position: relative; z-index: 1; }
+main {
+  position: relative;
+  z-index: 1;
+  padding-bottom: calc(72px + env(safe-area-inset-bottom));
+}
 
 .lines {
   position: fixed;
@@ -69,6 +73,66 @@ main { position: relative; z-index: 1; }
   align-items: center;
   gap: 12px;
   padding: calc(14px + env(safe-area-inset-top)) 18px 10px;
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--paper) 92%, transparent), transparent);
+  pointer-events: none;
+}
+
+.top > * {
+  pointer-events: auto;
+}
+
+.top-simple {
+  grid-template-columns: auto minmax(0, 1fr) 44px;
+}
+
+.top-spacer {
+  width: 44px;
+  height: 44px;
+}
+
+.tabbar {
+  position: fixed;
+  z-index: 50;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  align-items: stretch;
+  gap: 2px;
+  padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+  background: color-mix(in srgb, var(--paper) 88%, white);
+  backdrop-filter: blur(16px);
+  border-top: 1px solid color-mix(in srgb, var(--ink) 10%, transparent);
+}
+
+.tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: color-mix(in srgb, var(--ink) 55%, transparent);
+  padding: 4px 2px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  line-height: 1.1;
+}
+
+.tab span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tab.on {
+  color: var(--ink);
 }
 
 .circle {
@@ -284,10 +348,24 @@ main { position: relative; z-index: 1; }
 }
 
 .sheet {
+  position: relative;
   min-height: 100vh;
   min-height: 100dvh;
-  padding: 20vh 7vw calc(12vh + env(safe-area-inset-bottom));
+  padding: 20vh 7vw calc(12vh + env(safe-area-inset-bottom) + 72px);
   overflow: hidden;
+}
+
+.rules-page {
+  overflow: hidden;
+}
+
+.rules-page .blob-a {
+  width: min(48vw, 420px);
+  height: min(42vh, 380px);
+  left: auto;
+  right: -18vw;
+  top: 28vh;
+  opacity: 0.55;
 }
 
 .blob {
@@ -1030,7 +1108,14 @@ h1, h2, .menu-link, .theme-copy strong { font-weight: 500; }
   margin: 0;
 }
 
+.rules-copy {
+  position: relative;
+  z-index: 2;
+}
+
 .rules-page .rules {
+  position: relative;
+  z-index: 2;
   margin-top: 36px;
   padding: 0;
   background: transparent;
