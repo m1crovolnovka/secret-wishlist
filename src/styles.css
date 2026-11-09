@@ -1016,9 +1016,16 @@ h1, h2, .menu-link, .theme-copy strong { font-weight: 500; }
 }
 
 .wish-inline {
-  padding-top: 8px;
-  padding-bottom: 48px;
+  padding: 8px 0 18px;
   min-height: 0;
+}
+
+.hero-side .wish-panel {
+  margin: 4px 0 0;
+}
+
+.hero-side .invite-box {
+  width: 100%;
 }
 
 @media (prefers-reduced-motion: reduce) {

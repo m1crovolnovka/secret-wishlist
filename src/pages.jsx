@@ -167,10 +167,15 @@ export function RoomLobby() {
 
   const count = room.memberCount || room.people?.length || 0
 
-  function openWish() {
-    setWishOpen(true)
-    requestAnimationFrame(() => {
-      wishRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  function toggleWish() {
+    setWishOpen((open) => {
+      const next = !open
+      if (next) {
+        requestAnimationFrame(() => {
+          wishRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+        })
+      }
+      return next
     })
   }
 
@@ -235,12 +240,12 @@ export function RoomLobby() {
           </p>
           <div className="row-actions">
             {canEditWish ? (
-              <button className="fill" type="button" onClick={openWish} aria-expanded={wishOpen}>
-                {wishOpen ? 'К форме ниже' : 'Составить вишлист'}
+              <button className="fill" type="button" onClick={toggleWish} aria-expanded={wishOpen}>
+                {wishOpen ? 'Свернуть вишлист' : 'Составить вишлист'}
               </button>
             ) : (
               <button className="fill" type="button" onClick={() => go('/cabinet')}>
-                Открыть кабинет
+                Открыть профиль
               </button>
             )}
             {isGlobalAdmin ? (
@@ -256,6 +261,87 @@ export function RoomLobby() {
             ) : null}
           </div>
           {isGlobalAdmin && actionError && <p className="err">{actionError}</p>}
+
+          <div
+            ref={wishRef}
+            className={wishOpen ? 'wish-panel open' : 'wish-panel'}
+            aria-hidden={!wishOpen}
+          >
+            <div className="wish-panel-inner">
+              <div className="wish-inline">
+                <div className="label">
+                  <Squiggle />
+                  <span>твой вишлист · {room.title}</span>
+                </div>
+                <form className="stack-form wish-form" onSubmit={submitWish}>
+                  <label className="line">
+                    <span>название</span>
+                    <input value={title} onChange={(e) => setTitle(e.target.value)} />
+                  </label>
+                  <label className="line">
+                    <span>ссылка на покупку</span>
+                    <input
+                      value={url}
+                      onChange={(e) => setUrl(e.target.value)}
+                      placeholder="https://"
+                      inputMode="url"
+                    />
+                  </label>
+                  <div className="photo-row">
+                    <input
+                      ref={fileRef}
+                      type="file"
+                      accept="image/*"
+                      hidden
+                      onChange={(e) => {
+                        const next = e.target.files?.[0]
+                        setFile(next || null)
+                        setFileName(next?.name || '')
+                      }}
+                    />
+                    <button className="text-btn" type="button" onClick={() => fileRef.current?.click()}>
+                      {fileName || 'Прикрепить фото'}
+                    </button>
+                  </div>
+                  {err && <p className="err">{err}</p>}
+                  {saveError && <p className="err">Ошибка сохранения. Попробуй ещё раз.</p>}
+                  <button className="fill" type="submit" disabled={busy}>
+                    {busy ? 'Добавляю…' : 'Добавить в вишлист'}
+                  </button>
+                </form>
+
+                {gifts.length === 0 ? (
+                  <p className="note">Пока пусто — добавь первое желание.</p>
+                ) : (
+                  <ul className="mine">
+                    {gifts.map((gift) => (
+                      <li key={gift.id}>
+                        <div className="frame">
+                          <Photo src={gift.photo} alt={gift.title} />
+                        </div>
+                        <div>
+                          <h3>{gift.title}</h3>
+                          <div className="item-actions">
+                            {gift.url ? (
+                              <a className="buy" href={gift.url} target="_blank" rel="noreferrer">
+                                к покупке
+                              </a>
+                            ) : (
+                              <span className="demo-hint">без ссылки</span>
+                            )}
+                            <button className="text-btn" type="button" onClick={() => removeGift(gift.id)}>
+                              убрать
+                            </button>
+                          </div>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          </div>
+
           <InviteShare room={room} />
           <div className="row-actions">
             {isGlobalAdmin && (
@@ -277,92 +363,6 @@ export function RoomLobby() {
           {!isGlobalAdmin && actionError && <p className="err">{actionError}</p>}
         </div>
       </section>
-
-      <div
-        ref={wishRef}
-        className={wishOpen ? 'wish-panel open' : 'wish-panel'}
-        aria-hidden={!wishOpen}
-      >
-        <div className="wish-panel-inner">
-          <section className="sheet wish-inline">
-            <div className="label">
-              <Squiggle />
-              <span>твой вишлист · {room.title}</span>
-            </div>
-            <form className="stack-form wish-form" onSubmit={submitWish}>
-              <label className="line">
-                <span>название</span>
-                <input value={title} onChange={(e) => setTitle(e.target.value)} />
-              </label>
-              <label className="line">
-                <span>ссылка на покупку</span>
-                <input
-                  value={url}
-                  onChange={(e) => setUrl(e.target.value)}
-                  placeholder="https://"
-                  inputMode="url"
-                />
-              </label>
-              <div className="photo-row">
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept="image/*"
-                  hidden
-                  onChange={(e) => {
-                    const next = e.target.files?.[0]
-                    setFile(next || null)
-                    setFileName(next?.name || '')
-                  }}
-                />
-                <button className="text-btn" type="button" onClick={() => fileRef.current?.click()}>
-                  {fileName || 'Прикрепить фото'}
-                </button>
-              </div>
-              {err && <p className="err">{err}</p>}
-              {saveError && <p className="err">Ошибка сохранения. Попробуй ещё раз.</p>}
-              <div className="row-actions">
-                <button className="fill" type="submit" disabled={busy}>
-                  {busy ? 'Добавляю…' : 'Добавить в вишлист'}
-                </button>
-                <button className="text-btn" type="button" onClick={() => setWishOpen(false)}>
-                  Свернуть
-                </button>
-              </div>
-            </form>
-
-            {gifts.length === 0 ? (
-              <p className="note">Пока пусто — добавь первое желание.</p>
-            ) : (
-              <ul className="mine">
-                {gifts.map((gift) => (
-                  <li key={gift.id}>
-                    <div className="frame">
-                      <Photo src={gift.photo} alt={gift.title} />
-                    </div>
-                    <div>
-                      <h3>{gift.title}</h3>
-                      <div className="item-actions">
-                        {gift.url ? (
-                          <a className="buy" href={gift.url} target="_blank" rel="noreferrer">
-                            к покупке
-                          </a>
-                        ) : (
-                          <span className="demo-hint">без ссылки</span>
-                        )}
-                        <button className="text-btn" type="button" onClick={() => removeGift(gift.id)}>
-                          убрать
-                        </button>
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-        </div>
-      </div>
-
     </>
   )
 }

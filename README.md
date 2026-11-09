@@ -26,13 +26,6 @@ SDK: тема Telegram, BackButton, haptic, viewport/safe-area.
 
 Deep-link / start param: `room_<CODE>` → авто-join.
 
-Локальная отладка без Telegram: сохрани валидный initData:
-
-```js
-localStorage.setItem('taino-dev-init-data', '<initData>')
-```
-
-
 ## Экраны
 
 - `/` — отсчёт / анонимный вишлист после раздачи  
