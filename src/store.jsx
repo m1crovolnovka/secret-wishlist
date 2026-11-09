@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api, setToken } from './api'
-import { themeOf, themeToken } from './data'
+import { colorById, themeOf, themeToken } from './data'
 import { compressImageFile } from './imageCompress'
 import { getInitData, getStartParam, haptic, initTelegram } from './telegram'
 
@@ -232,6 +232,7 @@ export function StoreProvider({ children }) {
       const target = rooms.find((item) => item.id === id || String(item.numericId) === String(id))
       if (!target) return
       const go = () => {
+        setActionError('')
         setRoomId(target.id)
         localStorage.setItem(ROOM_KEY, target.id)
         navigate(to)
@@ -239,13 +240,32 @@ export function StoreProvider({ children }) {
         refreshRoomExtras(target.numericId, target)
       }
       if (roomId === target.id) {
+        setActionError('')
         navigate(to)
+        refreshRoomExtras(target.numericId, target)
         return
       }
       transition(themeToken(target.theme), go)
     },
     [rooms, roomId, navigate, transition, refreshRoomExtras],
   )
+
+  // Keep wishlist / assignment fresh without restarting the Mini App
+  useEffect(() => {
+    if (!room?.numericId) return undefined
+    const tick = () => refreshRoomExtras(room.numericId, room)
+    const onVis = () => {
+      if (document.visibilityState === 'visible') tick()
+    }
+    const id = setInterval(tick, 12000)
+    document.addEventListener('visibilitychange', onVis)
+    window.addEventListener('focus', tick)
+    return () => {
+      clearInterval(id)
+      document.removeEventListener('visibilitychange', onVis)
+      window.removeEventListener('focus', tick)
+    }
+  }, [room?.numericId, room?.phase, refreshRoomExtras, room])
 
   const createRoom = useCallback(
     async (spec) => {
@@ -387,11 +407,37 @@ export function StoreProvider({ children }) {
   }, [room, loadRooms])
 
   const requestChange = useCallback(
-    async (reason, requestedChanges) => {
+    async (payload) => {
       if (!room?.numericId) return
-      await api.createChangeRequest(room.numericId, { reason, requestedChanges })
+      await api.createChangeRequest(room.numericId, payload)
       const mine = await api.changeRequests(room.numericId)
       setChangeRequests(mine.items || [])
+    },
+    [room],
+  )
+
+  const leaveRoom = useCallback(async () => {
+    if (!room?.numericId) return
+    setActionError('')
+    try {
+      await api.leaveRoom(room.numericId)
+      haptic('success')
+      localStorage.removeItem(ROOM_KEY)
+      await loadRooms()
+      navigate('/rooms')
+    } catch (err) {
+      setActionError(err.message || 'Не удалось покинуть комнату')
+    }
+  }, [room, loadRooms, navigate])
+
+  const copyWishlistFrom = useCallback(
+    async (fromRoomId) => {
+      if (!room?.numericId) return { copied: 0, skipped: 0 }
+      const result = await api.copyWishlist(room.numericId, fromRoomId)
+      const wish = await api.wishlist(room.numericId)
+      setWishlist(wish)
+      haptic('success')
+      return result
     },
     [room],
   )
@@ -490,8 +536,14 @@ export function StoreProvider({ children }) {
 
   const assignmentView = useMemo(() => {
     if (!assignment?.available) return null
+    const color = colorById(room?.theme || 'newyear', assignment.colorCode)
     return {
-      name: '',
+      name: color?.name || 'Список',
+      colorCode: assignment.colorCode || '',
+      base: color?.base,
+      soft: color?.soft,
+      deep: color?.deep,
+      ink: color?.ink,
       note: assignment.note || '',
       gifts: (assignment.wishlist || []).map((item, index) => ({
         id: `${index}-${item.title}`,
@@ -506,7 +558,7 @@ export function StoreProvider({ children }) {
       deliveryAt: assignment.deliveryAt,
       deliveryPlace: assignment.deliveryPlace,
     }
-  }, [assignment])
+  }, [assignment, room?.theme])
 
   const isRevealed = Boolean(assignmentView)
   const isAdmin = Boolean(room?.hasAdminTab)
@@ -540,6 +592,8 @@ export function StoreProvider({ children }) {
       focusRoom,
       enter: () => {},
       logout,
+      leaveRoom,
+      copyWishlistFrom,
       setNote,
       addGift,
       removeGift,
@@ -584,6 +638,8 @@ export function StoreProvider({ children }) {
       transition,
       focusRoom,
       logout,
+      leaveRoom,
+      copyWishlistFrom,
       setNote,
       addGift,
       removeGift,

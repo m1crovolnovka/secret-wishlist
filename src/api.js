@@ -68,12 +68,18 @@ export const api = {
     request(`/api/rooms/${id}/me/wishlist/items`, { method: 'POST', body: JSON.stringify(body) }),
   removeWishlistItem: (id, itemId) =>
     request(`/api/rooms/${id}/me/wishlist/items/${itemId}`, { method: 'DELETE' }),
+  copyWishlist: (toRoomId, fromRoomId) =>
+    request(`/api/rooms/${toRoomId}/me/wishlist/copy`, {
+      method: 'POST',
+      body: JSON.stringify({ fromRoomId }),
+    }),
   uploadImage: async (roomId, file) => {
     const fd = new FormData()
     fd.append('file', file)
     return request(`/api/rooms/${roomId}/me/images`, { method: 'POST', body: fd })
   },
   assignment: (id) => request(`/api/rooms/${id}/assignment`),
+  leaveRoom: (id) => request(`/api/rooms/${id}/leave`, { method: 'POST' }),
   changeRequests: (id) => request(`/api/rooms/${id}/me/change-requests`),
   createChangeRequest: (id, body) =>
     request(`/api/rooms/${id}/me/change-requests`, { method: 'POST', body: JSON.stringify(body) }),
