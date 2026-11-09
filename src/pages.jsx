@@ -27,6 +27,8 @@ import {
   themeOf,
   toInput,
 } from './data'
+import { api } from './api'
+import { compressImageFile } from './imageCompress'
 import { useGo, useStore } from './store'
 
 function RuDateTimeInput({ value, onChange }) {
@@ -45,6 +47,39 @@ function normalizeUrl(raw) {
   if (!value) return ''
   if (/^https?:\/\//i.test(value)) return value
   return `https://${value}`
+}
+
+function InviteShare({ room }) {
+  const [hint, setHint] = useState('')
+  if (!room) return null
+  const invite = room.inviteLink || ''
+  const text = invite || `Код комнаты Тайно: ${room.code}`
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(text)
+      setHint(invite ? 'Ссылка скопирована' : 'Код скопирован')
+    } catch {
+      setHint(text)
+    }
+  }
+
+  return (
+    <div className="invite-box compact">
+      <div className="label">
+        <Squiggle />
+        <span>пригласить в комнату</span>
+      </div>
+      <p className="note">
+        Ссылка открывает бота и Mini App сразу в этой комнате. Код: <b>{room.code}</b>
+      </p>
+      {invite ? <p className="invite-link">{invite}</p> : null}
+      <button className="text-btn" type="button" onClick={copy}>
+        {invite ? 'Скопировать ссылку' : 'Скопировать код'}
+      </button>
+      {hint && <p className="demo-hint">{hint}</p>}
+    </div>
+  )
 }
 
 export function Home() {
@@ -93,10 +128,10 @@ export function Home() {
       <Collection
         wl={assignment}
         particle={theme.particle}
-        kicker={`${theme.label} · тебе выпал этот список`}
+        kicker={`${theme.label} · тебе выпал этот цвет`}
         side={
           <>
-            <p className="note aside">Собери это тихо. Кто загадал — не сказано.</p>
+            <p className="note aside">Собери это тихо. Имя не показывается — только цвет списка.</p>
             {budget && (
               <p className="budget">
                 <span>сумма подарка</span>
@@ -142,8 +177,8 @@ export function Home() {
           </div>
           <p className="note">
             {drawn
-              ? 'Раздача уже прошла — открой свой список желаний получателя.'
-              : `Составь вишлист. В комнате ${peopleCount(count)}. В срок откроется один чужой список — без имени.`}
+              ? 'Раздача уже прошла — открой выпавший список.'
+              : `Составь вишлист. В комнате ${peopleCount(count)}. После раздачи откроется один чужой список — без имени, только цвет.`}
             {hosting ? ' Ты ведёшь комнату и в раздаче не участвуешь.' : ''}
           </p>
           <div className="row-actions">
@@ -162,11 +197,12 @@ export function Home() {
               )
             ) : null}
           </div>
-          {actionError && <p className="err">{actionError}</p>}
+          {isGlobalAdmin && actionError && <p className="err">{actionError}</p>}
+          <InviteShare room={room} />
           {isGlobalAdmin ? (
             <div className="row-actions">
               <button className="text-btn" type="button" onClick={() => go('/admin')}>
-                Настройки и приглашение
+                Настройки
               </button>
               {isAdmin ? (
                 <button className="text-btn" type="button" onClick={() => go('/colors')}>
@@ -471,7 +507,7 @@ export function Rooms() {
         <div className="blob blob-a" />
         <p className="crumb">твои круги</p>
         <h1>Комнаты</h1>
-        <p className="note">Учёба, работа, свой круг — у каждого своя комната, свой срок и своя тема.</p>
+        <p className="note">Выбери комнату или создай новую. В каждую — свой вишлист и своя раздача.</p>
         <div className="row-actions room-new">
           <button className="fill" type="button" onClick={() => go('/rooms/new')}>
             Создать комнату
@@ -929,24 +965,31 @@ export function Cabinet() {
     rooms,
     seat,
     isGlobalAdmin,
+    isRevealed,
     focusRoom,
     addGift,
     removeGift,
-    logout,
+    leaveRoom,
+    copyWishlistFrom,
     saveError,
+    actionError,
     requestChange,
     changeRequests,
   } = useStore()
   const go = useGo()
   const fileRef = useRef(null)
+  const addFileRef = useRef(null)
   const [title, setTitle] = useState('')
   const [url, setUrl] = useState('')
   const [file, setFile] = useState(null)
   const [fileName, setFileName] = useState('')
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
-  const [changeReason, setChangeReason] = useState('')
-  const [changeWhat, setChangeWhat] = useState('')
+  const [addTitle, setAddTitle] = useState('')
+  const [addUrl, setAddUrl] = useState('')
+  const [addFile, setAddFile] = useState(null)
+  const [copyFrom, setCopyFrom] = useState('')
+  const [copyHint, setCopyHint] = useState('')
   useTitle('вишлист')
 
   if (!data.user) return <Navigate to="/enter" replace />
@@ -1004,20 +1047,50 @@ export function Cabinet() {
     }
   }
 
-  async function submitChange(event) {
+  async function submitAddRequest(event) {
     event.preventDefault()
-    if (!changeReason.trim() || !changeWhat.trim()) {
-      setErr('нужны причина и что менять')
+    if (!addTitle.trim()) {
+      setErr('нужно название желания')
       return
     }
+    setBusy(true)
+    setErr('')
     try {
-      await requestChange(changeReason.trim(), changeWhat.trim())
-      setChangeReason('')
-      setChangeWhat('')
+      let imageId = null
+      if (addFile) {
+        const compressed = await compressImageFile(addFile)
+        const uploaded = await api.uploadImage(room.numericId, compressed)
+        imageId = uploaded.id
+      }
+      await requestChange({
+        addTitle: addTitle.trim(),
+        addUrl: normalizeUrl(addUrl) || null,
+        addImageId: imageId,
+      })
+      setAddTitle('')
+      setAddUrl('')
+      setAddFile(null)
+      if (addFileRef.current) addFileRef.current.value = ''
     } catch (e) {
       setErr(e.message || 'не удалось отправить запрос')
+    } finally {
+      setBusy(false)
     }
   }
+
+  async function onCopyWishlist() {
+    if (!copyFrom) return
+    setCopyHint('')
+    try {
+      const result = await copyWishlistFrom(Number(copyFrom))
+      setCopyHint(`Скопировано: ${result.copied}${result.skipped ? `, пропущено: ${result.skipped}` : ''}`)
+    } catch (e) {
+      setCopyHint(e.message || 'не удалось скопировать')
+    }
+  }
+
+  const canLeave = !isRevealed && room.myRole !== 'OWNER' && room.phase === 'REGISTRATION'
+  const otherRooms = rooms.filter((item) => item.id !== room.id)
 
   return (
     <section className="sheet cabinet">
@@ -1027,18 +1100,23 @@ export function Cabinet() {
           <h1>{displayName}</h1>
           <p className="note">{data.user.username ? `@${data.user.username}` : 'без username'}</p>
           <div className="cab-actions">
-            <button className="text-btn" type="button" onClick={logout}>
-              Выйти
-            </button>
             <button className="text-btn" type="button" onClick={() => go('/rooms')}>
               Мои комнаты
             </button>
             <button className="text-btn" type="button" onClick={() => go('/enter')}>
               Другой код
             </button>
+            {canLeave && (
+              <button className="text-btn" type="button" onClick={() => leaveRoom()}>
+                Покинуть комнату
+              </button>
+            )}
           </div>
+          {actionError && <p className="err">{actionError}</p>}
         </div>
       </div>
+
+      <InviteShare room={room} />
 
       <div className="label">
         <Squiggle />
@@ -1061,32 +1139,92 @@ export function Cabinet() {
         <p className="note">В этой комнате ты не участвуешь. Смотри участников во вкладке «Участники».</p>
       ) : (
       <>
-      <form className="stack-form wish-form" onSubmit={submit}>
-        <div className="label">
-          <Squiggle />
-          <span>новое желание</span>
+      {room.canEdit && otherRooms.length > 0 && (
+        <div className="copy-wish">
+          <div className="label">
+            <Squiggle />
+            <span>скопировать из другой комнаты</span>
+          </div>
+          <div className="row-actions">
+            <select value={copyFrom} onChange={(e) => setCopyFrom(e.target.value)}>
+              <option value="">выбери комнату</option>
+              {otherRooms.map((item) => (
+                <option key={item.id} value={item.numericId}>
+                  {item.title}
+                </option>
+              ))}
+            </select>
+            <button className="text-btn" type="button" disabled={!copyFrom} onClick={onCopyWishlist}>
+              Скопировать вишлист
+            </button>
+          </div>
+          {copyHint && <p className="demo-hint">{copyHint}</p>}
         </div>
-        <label className="line">
-          <span>название</span>
-          <input value={title} onChange={(event) => setTitle(event.target.value)} />
-        </label>
-        <label className="line">
-          <span>ссылка на покупку</span>
-          <input value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://" inputMode="url" />
-        </label>
-        <div className="photo-row">
-          <input ref={fileRef} type="file" accept="image/*" hidden onChange={onFile} />
-          <button className="text-btn" type="button" onClick={() => fileRef.current?.click()}>
-            {fileName || 'Прикрепить фото'}
+      )}
+
+      {room.canEdit ? (
+        <form className="stack-form wish-form" onSubmit={submit}>
+          <div className="label">
+            <Squiggle />
+            <span>новое желание</span>
+          </div>
+          <label className="line">
+            <span>название</span>
+            <input value={title} onChange={(event) => setTitle(event.target.value)} />
+          </label>
+          <label className="line">
+            <span>ссылка на покупку</span>
+            <input value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://" inputMode="url" />
+          </label>
+          <div className="photo-row">
+            <input ref={fileRef} type="file" accept="image/*" hidden onChange={onFile} />
+            <button className="text-btn" type="button" onClick={() => fileRef.current?.click()}>
+              {fileName || 'Прикрепить фото'}
+            </button>
+            {file && <span className="demo-hint">фото сжимается перед отправкой</span>}
+          </div>
+          {err && <p className="err">{err}</p>}
+          {saveError && <p className="err">Ошибка сохранения. Попробуй ещё раз.</p>}
+          <button className="fill" type="submit" disabled={busy}>
+            {busy ? (file ? 'Сжимаю и отправляю…' : 'Добавляю…') : 'Добавить в вишлист'}
           </button>
-          {file && <span className="demo-hint">фото сжимается перед отправкой</span>}
-        </div>
-        {err && <p className="err">{err}</p>}
-        {saveError && <p className="err">Ошибка сохранения. Попробуй ещё раз.</p>}
-        <button className="fill" type="submit" disabled={busy}>
-          {busy ? (file ? 'Сжимаю и отправляю…' : 'Добавляю…') : 'Добавить в вишлист'}
-        </button>
-      </form>
+        </form>
+      ) : (
+        <form className="stack-form wish-form" onSubmit={submitAddRequest}>
+          <div className="label">
+            <Squiggle />
+            <span>запрос админу · добавить желание</span>
+          </div>
+          <p className="note">После раздачи список закрыт. Отправь желание — админ подтвердит, и оно появится в вишлисте.</p>
+          <label className="line">
+            <span>название</span>
+            <input value={addTitle} onChange={(e) => setAddTitle(e.target.value)} />
+          </label>
+          <label className="line">
+            <span>ссылка</span>
+            <input value={addUrl} onChange={(e) => setAddUrl(e.target.value)} placeholder="https://" />
+          </label>
+          <div className="photo-row">
+            <input
+              ref={addFileRef}
+              type="file"
+              accept="image/*"
+              hidden
+              onChange={(e) => setAddFile(e.target.files?.[0] || null)}
+            />
+            <button className="text-btn" type="button" onClick={() => addFileRef.current?.click()}>
+              {addFile?.name || 'Прикрепить фото'}
+            </button>
+          </div>
+          {err && <p className="err">{err}</p>}
+          <button className="fill" type="submit" disabled={busy}>
+            {busy ? 'Отправляю…' : 'Отправить админу'}
+          </button>
+          {changeRequests?.length > 0 && (
+            <p className="demo-hint">Последний статус: {changeRequests[0].status}</p>
+          )}
+        </form>
+      )}
 
       <div className="label mine-label">
         <Squiggle />
@@ -1111,37 +1249,16 @@ export function Cabinet() {
                   ) : (
                     <span className="demo-hint">без ссылки</span>
                   )}
-                  <button className="text-btn" type="button" onClick={() => removeGift(gift.id)}>
-                    убрать
-                  </button>
+                  {room.canEdit && (
+                    <button className="text-btn" type="button" onClick={() => removeGift(gift.id)}>
+                      убрать
+                    </button>
+                  )}
                 </div>
               </div>
             </li>
           ))}
         </ul>
-      )}
-
-      {!room.canEdit && (
-        <form className="stack-form" onSubmit={submitChange}>
-          <div className="label">
-            <Squiggle />
-            <span>запрос на изменение</span>
-          </div>
-          <label className="line">
-            <span>причина</span>
-            <input value={changeReason} onChange={(e) => setChangeReason(e.target.value)} />
-          </label>
-          <label className="line">
-            <span>что хочешь поменять</span>
-            <textarea rows={3} value={changeWhat} onChange={(e) => setChangeWhat(e.target.value)} />
-          </label>
-          <button className="fill" type="submit">
-            отправить админу
-          </button>
-          {changeRequests?.length > 0 && (
-            <p className="demo-hint">Последний статус: {changeRequests[0].status}</p>
-          )}
-        </form>
       )}
       </>
       )}

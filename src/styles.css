@@ -835,6 +835,35 @@ h1, h2, .menu-link, .theme-copy strong { font-weight: 500; }
   border-bottom: 1px solid var(--line);
 }
 
+.invite-box.compact {
+  margin: 18px 0 8px;
+  padding: 14px 0;
+}
+
+.copy-wish {
+  position: relative;
+  z-index: 2;
+  margin: 0 0 28px;
+  min-width: 0;
+}
+
+.copy-wish select {
+  min-width: 0;
+  max-width: 100%;
+  flex: 1;
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--ink) 35%, transparent);
+  background: transparent;
+  font-family: var(--sans);
+  font-size: 16px;
+  padding: 10px 0;
+  color: inherit;
+}
+
+.field-color {
+  margin: 8px 0 18px;
+}
+
 .invite-link {
   font-family: var(--mono);
   font-size: 13px;

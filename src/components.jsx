@@ -173,7 +173,7 @@ function Person() {
 }
 
 export function Header() {
-  const { data, room, isRevealed, isAdmin, canTune, reset } = useStore()
+  const { data, room, isRevealed, isAdmin, canTune } = useStore()
   const go = useGo()
   const location = useLocation()
   const [open, setOpen] = useState(false)
@@ -273,16 +273,6 @@ export function Header() {
           </div>
           <div className="menu-foot">
             <span>{room ? `${room.title} · ${isRevealed ? 'список открыт' : 'ждём срок'}` : 'выбери комнату'}</span>
-            <button
-              type="button"
-              className="text-btn light"
-              onClick={() => {
-                setOpen(false)
-                reset()
-              }}
-            >
-              выйти
-            </button>
           </div>
         </nav>
       )}
@@ -402,15 +392,20 @@ export function Mosaic() {
 
 export function Collection({ wl, kicker, side, particle = 'snow' }) {
   return (
-    <article className="field" style={{ background: wl.base, color: wl.ink }}>
-      <Weather type={particle} color={wl.ink} />
-      <div className="blob blob-a" style={{ background: wl.soft }} />
+    <article className="field" style={{ background: wl.base || '#5c2d55', color: wl.ink || '#f8f0f4' }}>
+      <Weather type={particle} color={wl.ink || '#f8f0f4'} />
+      <div className="blob blob-a" style={{ background: wl.soft || wl.base }} />
       <div className="field-top">
         <p className="crumb">
           <SnowMark /> {kicker}
         </p>
         <div className="field-head">
-          <h1>{wl.name}</h1>
+          <h1>{wl.name || 'Список'}</h1>
+          {wl.colorCode ? (
+            <p className="color-chip field-color" style={{ background: wl.base, color: wl.ink }}>
+              цвет · {wl.name}
+            </p>
+          ) : null}
           <div className="field-side">
             <div className="label">
               <Squiggle />
