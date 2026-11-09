@@ -46,6 +46,7 @@ function mapRoomSummary(summary, detail = null) {
     participates: summary.participates,
     hasAdminTab: summary.hasAdminTab,
     canTune: summary.canTune,
+    archived: Boolean(summary.archived || summary.phase === 'FINISHED'),
     people: [],
     formLocked: me?.formLocked,
     canEdit: me?.canEdit,
@@ -59,6 +60,7 @@ export function StoreProvider({ children }) {
   const [boot, setBoot] = useState({ loading: true, error: null })
   const [user, setUser] = useState(null)
   const [rooms, setRooms] = useState([])
+  const [archivedRooms, setArchivedRooms] = useState([])
   const [roomId, setRoomId] = useState(() => localStorage.getItem(ROOM_KEY) || '')
   const [form, setForm] = useState(null)
   const [wishlist, setWishlist] = useState({ items: [], canEdit: true })
@@ -143,7 +145,10 @@ export function StoreProvider({ children }) {
   }, [])
 
   const loadRooms = useCallback(async (preferredId) => {
-    const list = await api.rooms()
+    const [list, archivedList] = await Promise.all([
+      api.rooms(),
+      api.archivedRooms().catch(() => []),
+    ])
     const mapped = []
     for (const summary of list) {
       let detail = null
@@ -155,6 +160,7 @@ export function StoreProvider({ children }) {
       mapped.push(mapRoomSummary(detail?.room || summary, detail))
     }
     setRooms(mapped)
+    setArchivedRooms((archivedList || []).map((summary) => mapRoomSummary(summary)))
     const preferred = preferredId || localStorage.getItem(ROOM_KEY)
     const next =
       mapped.find((r) => String(r.numericId) === String(preferred) || r.id === preferred)?.id ||
@@ -162,10 +168,33 @@ export function StoreProvider({ children }) {
       ''
     setRoomId(next)
     if (next) localStorage.setItem(ROOM_KEY, next)
+    else localStorage.removeItem(ROOM_KEY)
     const current = mapped.find((r) => r.id === next)
     if (current) await refreshRoomExtras(current.numericId, current)
     return mapped
   }, [refreshRoomExtras])
+
+  const deleteRoom = useCallback(
+    async (numericId) => {
+      const id = numericId ?? room?.numericId
+      if (!id) return
+      setActionError('')
+      try {
+        await api.deleteRoom(id)
+        haptic('success')
+        if (String(room?.numericId) === String(id)) {
+          localStorage.removeItem(ROOM_KEY)
+          setRoomId('')
+        }
+        await loadRooms()
+        navigate('/')
+      } catch (err) {
+        setActionError(err.message || 'Не удалось удалить комнату')
+        throw err
+      }
+    },
+    [room, loadRooms, navigate],
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -590,6 +619,8 @@ export function StoreProvider({ children }) {
       enter: () => {},
       logout,
       leaveRoom,
+      deleteRoom,
+      archivedRooms,
       copyWishlistFrom,
       setNote,
       addGift,
@@ -636,6 +667,8 @@ export function StoreProvider({ children }) {
       focusRoom,
       logout,
       leaveRoom,
+      deleteRoom,
+      archivedRooms,
       copyWishlistFrom,
       setNote,
       addGift,
