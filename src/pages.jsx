@@ -81,9 +81,8 @@ function InviteShare({ room }) {
   )
 }
 
-export function Home() {
+export function RoomLobby() {
   const {
-    data,
     room,
     theme,
     now,
@@ -91,12 +90,30 @@ export function Home() {
     isAdmin,
     isGlobalAdmin,
     assignment,
+    seat,
     drawNow,
     undraw,
+    leaveRoom,
+    addGift,
+    removeGift,
     actionError,
+    saveError,
   } = useStore()
   const go = useGo()
-  useTitle(isRevealed ? 'тебе выпало' : room?.title || 'Тайно')
+  const wishRef = useRef(null)
+  const fileRef = useRef(null)
+  const [wishOpen, setWishOpen] = useState(false)
+  const [title, setTitle] = useState('')
+  const [url, setUrl] = useState('')
+  const [file, setFile] = useState(null)
+  const [fileName, setFileName] = useState('')
+  const [err, setErr] = useState('')
+  const [busy, setBusy] = useState(false)
+  useTitle(isRevealed ? 'тебе выпало' : room?.title || 'комната')
+
+  useEffect(() => {
+    setWishOpen(false)
+  }, [room?.id])
 
   if (!room) {
     return (
@@ -104,10 +121,10 @@ export function Home() {
         <div className="hero-copy">
           <p className="crumb">Тайно</p>
           <h1>Нет активной комнаты</h1>
-          <p className="note">Создай комнату для друзей или зайди по приглашению — дальше раздача идёт сама.</p>
+          <p className="note">Выбери комнату на главной или войди по приглашению.</p>
           <div className="row-actions">
-            <button className="fill" type="button" onClick={() => go('/rooms/new')}>
-              Создать комнату
+            <button className="fill" type="button" onClick={() => go('/')}>
+              К комнатам
             </button>
             <button className="text-btn" type="button" onClick={() => go('/enter')}>
               Войти по коду
@@ -121,6 +138,9 @@ export function Home() {
   const budget = money(room.budget, room.currency)
   const drawn = isDrawnRoom(room, now)
   const hosting = isGlobalAdmin && room.presence === 'out'
+  const gifts = seat?.gifts || []
+  const canLeave = !isRevealed && room.myRole !== 'OWNER' && room.phase === 'REGISTRATION'
+  const canEditWish = Boolean(room.canEdit) && !hosting
 
   if (isRevealed && assignment) {
     return (
@@ -146,6 +166,39 @@ export function Home() {
   }
 
   const count = room.memberCount || room.people?.length || 0
+
+  function openWish() {
+    setWishOpen(true)
+    requestAnimationFrame(() => {
+      wishRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }
+
+  async function submitWish(event) {
+    event.preventDefault()
+    if (!title.trim()) {
+      setErr('нужно название')
+      return
+    }
+    if (gifts.length >= 12) {
+      setErr('хватит двенадцати желаний')
+      return
+    }
+    setBusy(true)
+    setErr('')
+    try {
+      await addGift({ title: title.trim(), url: normalizeUrl(url), file })
+      setTitle('')
+      setUrl('')
+      setFile(null)
+      setFileName('')
+      if (fileRef.current) fileRef.current.value = ''
+    } catch (e) {
+      setErr(e.message || 'не удалось добавить')
+    } finally {
+      setBusy(false)
+    }
+  }
 
   return (
     <>
@@ -181,9 +234,15 @@ export function Home() {
             {hosting ? ' Ты ведёшь комнату и в раздаче не участвуешь.' : ''}
           </p>
           <div className="row-actions">
-            <button className="fill" type="button" onClick={() => go('/cabinet')}>
-              {drawn ? 'Открыть кабинет' : 'Составить вишлист'}
-            </button>
+            {canEditWish ? (
+              <button className="fill" type="button" onClick={openWish} aria-expanded={wishOpen}>
+                {wishOpen ? 'К форме ниже' : 'Составить вишлист'}
+              </button>
+            ) : (
+              <button className="fill" type="button" onClick={() => go('/cabinet')}>
+                Открыть кабинет
+              </button>
+            )}
             {isGlobalAdmin ? (
               drawn ? (
                 <button className="text-btn" type="button" onClick={() => undraw()}>
@@ -198,24 +257,112 @@ export function Home() {
           </div>
           {isGlobalAdmin && actionError && <p className="err">{actionError}</p>}
           <InviteShare room={room} />
-          {isGlobalAdmin ? (
-            <div className="row-actions">
+          <div className="row-actions">
+            {isGlobalAdmin && (
               <button className="text-btn" type="button" onClick={() => go('/admin')}>
                 Настройки
               </button>
-              {isAdmin ? (
-                <button className="text-btn" type="button" onClick={() => go('/colors')}>
-                  Участники и вишлисты
-                </button>
-              ) : null}
-            </div>
-          ) : (
-            <button className="text-btn" type="button" onClick={() => go('/rooms')}>
-              Мои комнаты
-            </button>
-          )}
+            )}
+            {isAdmin && (
+              <button className="text-btn" type="button" onClick={() => go('/colors')}>
+                Участники и вишлисты
+              </button>
+            )}
+            {canLeave && (
+              <button className="text-btn" type="button" onClick={() => leaveRoom()}>
+                Покинуть комнату
+              </button>
+            )}
+          </div>
+          {!isGlobalAdmin && actionError && <p className="err">{actionError}</p>}
         </div>
       </section>
+
+      <div
+        ref={wishRef}
+        className={wishOpen ? 'wish-panel open' : 'wish-panel'}
+        aria-hidden={!wishOpen}
+      >
+        <div className="wish-panel-inner">
+          <section className="sheet wish-inline">
+            <div className="label">
+              <Squiggle />
+              <span>твой вишлист · {room.title}</span>
+            </div>
+            <form className="stack-form wish-form" onSubmit={submitWish}>
+              <label className="line">
+                <span>название</span>
+                <input value={title} onChange={(e) => setTitle(e.target.value)} />
+              </label>
+              <label className="line">
+                <span>ссылка на покупку</span>
+                <input
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  placeholder="https://"
+                  inputMode="url"
+                />
+              </label>
+              <div className="photo-row">
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="image/*"
+                  hidden
+                  onChange={(e) => {
+                    const next = e.target.files?.[0]
+                    setFile(next || null)
+                    setFileName(next?.name || '')
+                  }}
+                />
+                <button className="text-btn" type="button" onClick={() => fileRef.current?.click()}>
+                  {fileName || 'Прикрепить фото'}
+                </button>
+              </div>
+              {err && <p className="err">{err}</p>}
+              {saveError && <p className="err">Ошибка сохранения. Попробуй ещё раз.</p>}
+              <div className="row-actions">
+                <button className="fill" type="submit" disabled={busy}>
+                  {busy ? 'Добавляю…' : 'Добавить в вишлист'}
+                </button>
+                <button className="text-btn" type="button" onClick={() => setWishOpen(false)}>
+                  Свернуть
+                </button>
+              </div>
+            </form>
+
+            {gifts.length === 0 ? (
+              <p className="note">Пока пусто — добавь первое желание.</p>
+            ) : (
+              <ul className="mine">
+                {gifts.map((gift) => (
+                  <li key={gift.id}>
+                    <div className="frame">
+                      <Photo src={gift.photo} alt={gift.title} />
+                    </div>
+                    <div>
+                      <h3>{gift.title}</h3>
+                      <div className="item-actions">
+                        {gift.url ? (
+                          <a className="buy" href={gift.url} target="_blank" rel="noreferrer">
+                            к покупке
+                          </a>
+                        ) : (
+                          <span className="demo-hint">без ссылки</span>
+                        )}
+                        <button className="text-btn" type="button" onClick={() => removeGift(gift.id)}>
+                          убрать
+                        </button>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </div>
+      </div>
+
       <section className="rules" id="rules">
         <div className="label">
           <Squiggle />
@@ -528,7 +675,7 @@ export function Rooms() {
                   d="M0,70 C180,120 340,20 520,64 C740,116 900,16 1100,68 C1260,104 1360,36 1440,72 L1440,120 L0,120 Z"
                 />
               </svg>
-              <button className="room-hit" type="button" onClick={() => focusRoom(item.id, '/')}>
+              <button className="room-hit" type="button" onClick={() => focusRoom(item.id, '/room')}>
                 <p className="crumb">
                   {theme.label} · {item.myRole === 'OWNER' ? roomMark(item, { name: 'qqq', email: 'qqq@qqq' }) : 'участник'}
                   {item.id === room?.id ? ' · сейчас' : ''}
@@ -683,7 +830,7 @@ export function NewRoom() {
         <button className="fill" type="submit" disabled={busy}>
           {busy ? 'Создаю…' : 'Создать комнату'}
         </button>
-        <button className="text-btn" type="button" onClick={() => go('/rooms')}>
+        <button className="text-btn" type="button" onClick={() => go('/')}>
           К комнатам
         </button>
       </form>
@@ -721,8 +868,8 @@ export function Admin() {
         <p className="crumb">{room.title}</p>
         <h1>Не твоя</h1>
         <p className="note">Настройки только у владельца комнаты.</p>
-        <button className="text-btn" type="button" onClick={() => go('/')}>
-          На главную
+        <button className="text-btn" type="button" onClick={() => go('/room')}>
+          В комнату
         </button>
       </section>
     )
@@ -922,10 +1069,8 @@ export function Enter() {
     setErr('')
     try {
       await joinByCode(code)
-      go('/')
     } catch (e) {
       setErr(e.message || 'не удалось войти')
-    } finally {
       setBusy(false)
     }
   }
@@ -1099,8 +1244,11 @@ export function Cabinet() {
           <h1>{displayName}</h1>
           <p className="note">{data.user.username ? `@${data.user.username}` : 'без username'}</p>
           <div className="cab-actions">
-            <button className="text-btn" type="button" onClick={() => go('/rooms')}>
+            <button className="text-btn" type="button" onClick={() => go('/')}>
               Мои комнаты
+            </button>
+            <button className="text-btn" type="button" onClick={() => go('/room')}>
+              В лобби
             </button>
             <button className="text-btn" type="button" onClick={() => go('/enter')}>
               Другой код

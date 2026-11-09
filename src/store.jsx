@@ -228,7 +228,7 @@ export function StoreProvider({ children }) {
   }, [room?.numericId, room?.phase, refreshRoomExtras])
 
   const focusRoom = useCallback(
-    (id, to = '/') => {
+    (id, to = '/room') => {
       const target = rooms.find((item) => item.id === id || String(item.numericId) === String(id))
       if (!target) return
       const go = () => {
@@ -284,7 +284,7 @@ export function StoreProvider({ children }) {
       haptic('success')
       await loadRooms(detail.room.id)
       transition(themeToken(detail.room.theme), () => {
-        navigate('/')
+        navigate('/room')
         window.scrollTo(0, 0)
       })
     },
@@ -296,7 +296,7 @@ export function StoreProvider({ children }) {
       const detail = await api.joinRoom(code.trim())
       haptic('success')
       await loadRooms(detail.room.id)
-      navigate('/')
+      navigate('/room')
     },
     [loadRooms, navigate],
   )
@@ -424,7 +424,7 @@ export function StoreProvider({ children }) {
       haptic('success')
       localStorage.removeItem(ROOM_KEY)
       await loadRooms()
-      navigate('/rooms')
+      navigate('/')
     } catch (err) {
       setActionError(err.message || 'Не удалось покинуть комнату')
     }
