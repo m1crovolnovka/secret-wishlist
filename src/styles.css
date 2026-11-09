@@ -1030,6 +1030,12 @@ h1, h2, .menu-link, .theme-copy strong { font-weight: 500; }
   margin: 0;
 }
 
+.rules-page .rules {
+  margin-top: 36px;
+  padding: 0;
+  background: transparent;
+}
+
 .rules {
   position: relative;
   z-index: 2;

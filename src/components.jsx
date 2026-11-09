@@ -242,12 +242,6 @@ export function Header() {
             <span className="full">комнаты</span>
             <span className="short">мои</span>
           </button>
-          {room && (
-            <button className="quiet blend" type="button" onClick={() => travel('/room')}>
-              <span className="full">лобби</span>
-              <span className="short">зал</span>
-            </button>
-          )}
           <button className="circle letter" type="button" aria-label="мой вишлист" onClick={onAccount}>
             {user ? (user.firstName || user.username || '?').slice(0, 1).toUpperCase() : <Person />}
           </button>
@@ -260,11 +254,6 @@ export function Header() {
             <button type="button" className="menu-link" onClick={() => travel('/')}>
               Комнаты
             </button>
-            {room && (
-              <button type="button" className="menu-link" onClick={() => travel('/room')}>
-                Лобби
-              </button>
-            )}
             {isAdmin && (
               <button type="button" className="menu-link" onClick={onColors}>
                 Участники
@@ -278,6 +267,9 @@ export function Header() {
                 Настройки
               </button>
             )}
+            <button type="button" className="menu-link" onClick={() => travel('/rules')}>
+              Правила
+            </button>
           </div>
           <div className="menu-foot">
             <span>{room ? `${room.title} · ${isRevealed ? 'список открыт' : 'ждём срок'}` : 'выбери комнату'}</span>
