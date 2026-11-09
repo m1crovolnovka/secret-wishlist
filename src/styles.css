@@ -687,6 +687,40 @@ h1, h2, .menu-link, .theme-copy strong { font-weight: 500; }
   align-items: flex-start;
 }
 
+.archive-block {
+  position: relative;
+  z-index: 2;
+  padding: 6vh 7vw 10vh;
+}
+
+.archive-block > .label {
+  margin-bottom: 8px;
+}
+
+.archive-list .archive-row {
+  min-height: auto;
+  padding: 28px 0 32px;
+  border-top: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+}
+
+.archive-hit {
+  pointer-events: none;
+}
+
+.archive-row h2 {
+  font-size: clamp(1.8rem, 5vw, 2.8rem);
+}
+
+.danger-zone {
+  margin: 6vh 0 2vh;
+  padding-top: 4vh;
+  border-top: 1px solid color-mix(in srgb, currentColor 16%, transparent);
+}
+
+.danger-btn {
+  color: #9a2f2f;
+}
+
 .room-hit {
   background: none;
   border: 0;

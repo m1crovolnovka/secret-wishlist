@@ -376,7 +376,7 @@ export function Rules() {
       <div className="rules-copy">
         <p className="crumb">как это работает</p>
         <h1>Правила</h1>
-        <p className="note">Анонимный Тайный Санта: вишлисты без имён, раздача по цвету.</p>
+        <p className="note">Анонимный обмен подарками: вишлисты без имён, раздача по цвету.</p>
       </div>
       <div className="rules" id="rules">
         <ol>
@@ -649,14 +649,30 @@ function PersonRow({ person, themeId, active, onClick }) {
 }
 
 export function Rooms() {
-  const { data, rooms, room, focusRoom, now, isGlobalAdmin } = useStore()
+  const { rooms, archivedRooms, room, focusRoom, now, deleteRoom, actionError } = useStore()
   const go = useGo()
+  const [deletingId, setDeletingId] = useState(null)
   useTitle('комнаты')
   const ordered = [...rooms].sort((a, b) => {
     if (a.id === room?.id) return -1
     if (b.id === room?.id) return 1
     return Number(b.numericId || 0) - Number(a.numericId || 0)
   })
+  const archived = [...archivedRooms].sort(
+    (a, b) => Number(b.giftBy || 0) - Number(a.giftBy || 0),
+  )
+
+  async function onDeleteArchived(item) {
+    if (!window.confirm(`Удалить комнату «${item.title}» навсегда?`)) return
+    setDeletingId(item.numericId)
+    try {
+      await deleteRoom(item.numericId)
+    } catch {
+      /* actionError in store */
+    } finally {
+      setDeletingId(null)
+    }
+  }
 
   return (
     <>
@@ -678,6 +694,7 @@ export function Rooms() {
         {ordered.map((item) => {
           const theme = themeOf(item.theme)
           const drawn = isDrawnRoom(item, now)
+          const delivery = item.phase === 'DELIVERY'
           return (
             <article key={item.id} className="room-row" style={{ background: theme.band, color: theme.ink }}>
               <svg className="lip" viewBox="0 0 1440 120" preserveAspectRatio="none" aria-hidden="true">
@@ -693,7 +710,8 @@ export function Rooms() {
                 </p>
                 <h2>{item.title}</h2>
                 <span className="band-more">
-                  {peopleCount(item.memberCount || 0)} · {drawn ? 'список выпал' : 'скоро'}
+                  {peopleCount(item.memberCount || 0)} ·{' '}
+                  {delivery ? 'раздача подарков' : drawn ? 'список выпал' : 'скоро'}
                   {item.budget ? ` · ${money(item.budget, item.currency)}` : ''}
                   {item.code ? ` · код ${item.code}` : ''}
                 </span>
@@ -707,6 +725,49 @@ export function Rooms() {
           )
         })}
       </div>
+      {archived.length > 0 && (
+        <section className="archive-block">
+          <div className="label">
+            <Squiggle />
+            <span>архив</span>
+          </div>
+          <p className="note">
+            Через 7 дней после даты «подарить до» комната переезжает сюда. Можно смотреть итог и удалить.
+          </p>
+          <div className="room-list archive-list">
+            {archived.map((item) => {
+              const theme = themeOf(item.theme)
+              return (
+                <article
+                  key={item.id}
+                  className="room-row archive-row"
+                  style={{ background: theme.soft || theme.band, color: theme.ink }}
+                >
+                  <div className="room-hit archive-hit">
+                    <p className="crumb">{theme.label} · архив</p>
+                    <h2>{item.title}</h2>
+                    <span className="band-more">
+                      {peopleCount(item.memberCount || 0)}
+                      {item.giftBy ? ` · до ${formatWhen(item.giftBy)}` : ''}
+                    </span>
+                  </div>
+                  {item.myRole === 'OWNER' && (
+                    <button
+                      className="text-btn"
+                      type="button"
+                      disabled={deletingId === item.numericId}
+                      onClick={() => onDeleteArchived(item)}
+                    >
+                      {deletingId === item.numericId ? 'Удаляю…' : 'Удалить'}
+                    </button>
+                  )}
+                </article>
+              )
+            })}
+          </div>
+          {actionError && <p className="err">{actionError}</p>}
+        </section>
+      )}
     </>
   )
 }
@@ -860,12 +921,14 @@ export function Admin() {
     updateRoom,
     drawNow,
     undraw,
+    deleteRoom,
     actionError,
   } = useStore()
   const go = useGo()
   const [title, setTitle] = useState(room?.title || '')
   const [inviteHint, setInviteHint] = useState('')
   const [drawBusy, setDrawBusy] = useState(false)
+  const [deleteBusy, setDeleteBusy] = useState(false)
   useTitle('настройки')
 
   useEffect(() => {
@@ -907,6 +970,16 @@ export function Admin() {
       else await drawNow()
     } finally {
       setDrawBusy(false)
+    }
+  }
+
+  async function onDeleteRoom() {
+    if (!window.confirm(`Удалить комнату «${room.title}» навсегда? Участники потеряют доступ.`)) return
+    setDeleteBusy(true)
+    try {
+      await deleteRoom(room.numericId)
+    } catch {
+      setDeleteBusy(false)
     }
   }
 
@@ -1058,6 +1131,22 @@ export function Admin() {
           {actionError && <p className="err">{actionError}</p>}
         </div>
       </div>
+
+      {isGlobalAdmin && (
+        <div className="danger-zone">
+          <div className="label">
+            <Squiggle />
+            <span>удаление</span>
+          </div>
+          <p className="note">
+            Комната исчезнет у всех. После даты подарков она ещё неделю живёт в активных, потом уходит в архив —
+            оттуда тоже можно удалить.
+          </p>
+          <button className="text-btn danger-btn" type="button" disabled={deleteBusy} onClick={onDeleteRoom}>
+            {deleteBusy ? 'Удаляю…' : 'Удалить комнату'}
+          </button>
+        </div>
+      )}
     </section>
   )
 }
