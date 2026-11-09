@@ -91,13 +91,30 @@ export function getInitData() {
 export function getStartParam() {
   try {
     const lp = retrieveLaunchParams()
-    const fromLp = lp.startParam || lp.tgWebAppStartParam || ''
+    const fromLp =
+      lp.startParam ||
+      lp.tgWebAppStartParam ||
+      lp.start_param ||
+      ''
     if (fromLp) return String(fromLp)
   } catch {
     // outside Telegram / old client
   }
+  try {
+    const tg = window.Telegram?.WebApp
+    const fromTg = tg?.initDataUnsafe?.start_param || ''
+    if (fromTg) return String(fromTg)
+  } catch {
+    // ignore
+  }
   const q = new URLSearchParams(window.location.search)
-  return q.get('startapp') || q.get('tgWebAppStartParam') || ''
+  const hash = new URLSearchParams((window.location.hash || '').replace(/^#/, ''))
+  return (
+    q.get('startapp') ||
+    q.get('tgWebAppStartParam') ||
+    hash.get('tgWebAppStartParam') ||
+    ''
+  )
 }
 
 export function applyTelegramTheme() {

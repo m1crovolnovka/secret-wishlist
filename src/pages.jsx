@@ -71,9 +71,8 @@ function InviteShare({ room }) {
         <span>пригласить в комнату</span>
       </div>
       <p className="note">
-        Ссылка открывает бота и Mini App сразу в этой комнате. Код: <b>{room.code}</b>
+        Ссылка сразу открывает Mini App в этой комнате. Код: <b>{room.code}</b>
       </p>
-      {invite ? <p className="invite-link">{invite}</p> : null}
       <button className="text-btn" type="button" onClick={copy}>
         {invite ? 'Скопировать ссылку' : 'Скопировать код'}
       </button>
@@ -771,10 +770,10 @@ export function Admin() {
           <span>приглашение</span>
         </div>
         <p className="note">
-          Ссылка открывает бота и сразу ведёт в Mini App этой комнаты. Код: <b>{room.code}</b>
+          Ссылка сразу открывает Mini App в этой комнате. Код: <b>{room.code}</b>
         </p>
-        {invite ? <p className="invite-link">{invite}</p> : (
-          <p className="demo-hint">Ссылка появится, когда на сервере задан TELEGRAM_BOT_USERNAME. Пока делитесь кодом.</p>
+        {!invite && (
+          <p className="demo-hint">Задай TELEGRAM_BOT_USERNAME на сервере — пока копируется только код.</p>
         )}
         <div className="row-actions">
           <button className="fill" type="button" onClick={copyInvite}>
