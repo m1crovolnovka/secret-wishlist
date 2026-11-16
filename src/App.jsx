@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import { Header, Pour, ScrollReset } from './components'
-import { Admin, Cabinet, Colors, Enter, NewRoom, RoomLobby, Rooms, Rules } from './pages'
+import { Admin, Cabinet, Colors, Enter, NewRoom, RoomLobby, Rooms, Rules, SharedWishlist } from './pages'
 import { useStore } from './store'
 import { showBackButton } from './telegram'
 
@@ -54,6 +54,7 @@ export default function App() {
           <Route path="/rooms/new" element={<NewRoom />} />
           <Route path="/admin" element={<Admin />} />
           <Route path="/cabinet" element={<Cabinet />} />
+          <Route path="/shared/:token" element={<SharedWishlist />} />
           <Route path="/enter" element={<Enter />} />
           <Route path="/lists" element={<Navigate to="/colors" replace />} />
           <Route path="/list/:id" element={<Navigate to="/room" replace />} />

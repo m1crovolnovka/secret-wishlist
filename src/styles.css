@@ -721,6 +721,49 @@ h1, h2, .menu-link, .theme-copy strong { font-weight: 500; }
   color: #9a2f2f;
 }
 
+.public-block {
+  position: relative;
+  z-index: 2;
+  padding: 4vh 7vw 12vh;
+}
+
+.public-list {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.public-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+}
+
+.public-list strong {
+  display: block;
+}
+
+.open-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.personal-wish {
+  margin-top: 18px;
+}
+
+.room-owner-actions {
+  margin-top: 18px;
+}
+
 .room-hit {
   background: none;
   border: 0;
