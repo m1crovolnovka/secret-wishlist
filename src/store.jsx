@@ -46,6 +46,8 @@ function mapRoomSummary(summary, detail = null) {
     participates: summary.participates,
     hasAdminTab: summary.hasAdminTab,
     canTune: summary.canTune,
+    secrecyMode: summary.secrecyMode || 'SECRET',
+    visibility: summary.visibility || 'PRIVATE',
     archived: Boolean(summary.archived || summary.phase === 'FINISHED'),
     people: [],
     formLocked: me?.formLocked,
@@ -299,6 +301,8 @@ export function StoreProvider({ children }) {
         title: spec.title,
         theme: spec.theme,
         adminMode: MODE_FROM_PRESENCE[spec.presence] || 'ADMIN_PARTICIPATES',
+        secrecyMode: spec.secrecyMode || 'SECRET',
+        visibility: spec.visibility || 'PRIVATE',
         registrationEndsAt: new Date(spec.drawAt).toISOString(),
         deliveryAt: new Date(spec.giftBy).toISOString(),
         deliveryPlace: spec.deliveryPlace || '',
@@ -327,6 +331,16 @@ export function StoreProvider({ children }) {
     [loadRooms, navigate],
   )
 
+  const joinPublicRoom = useCallback(
+    async (roomId) => {
+      const detail = await api.joinPublicRoom(roomId)
+      haptic('success')
+      await loadRooms(detail.room.id)
+      navigate('/room')
+    },
+    [loadRooms, navigate],
+  )
+
   const updateRoom = useCallback(
     async (patch) => {
       if (!room?.numericId || !room.canTune) return
@@ -334,6 +348,8 @@ export function StoreProvider({ children }) {
       if (typeof patch.title === 'string') body.title = patch.title
       if (patch.theme) body.theme = patch.theme
       if (typeof patch.presence === 'string') body.adminMode = MODE_FROM_PRESENCE[patch.presence]
+      if (typeof patch.secrecyMode === 'string') body.secrecyMode = patch.secrecyMode
+      if (typeof patch.visibility === 'string') body.visibility = patch.visibility
       if (typeof patch.drawAt === 'number') body.registrationEndsAt = new Date(patch.drawAt).toISOString()
       if (typeof patch.giftBy === 'number') body.deliveryAt = new Date(patch.giftBy).toISOString()
       if (typeof patch.budget === 'number') {
@@ -571,6 +587,9 @@ export function StoreProvider({ children }) {
       deep: color?.deep,
       ink: color?.ink,
       note: assignment.note || '',
+      wbPickup: assignment.wbPickup || '',
+      contactLink: assignment.contactLink || '',
+      secrecyMode: assignment.secrecyMode || room?.secrecyMode || 'SECRET',
       gifts: (assignment.wishlist || []).map((item, index) => ({
         id: `${index}-${item.title}`,
         title: item.title,
@@ -584,7 +603,7 @@ export function StoreProvider({ children }) {
       deliveryAt: assignment.deliveryAt,
       deliveryPlace: assignment.deliveryPlace,
     }
-  }, [assignment, room?.theme])
+  }, [assignment, room?.theme, room?.secrecyMode])
 
   const isRevealed = Boolean(assignmentView)
   const isAdmin = Boolean(room?.hasAdminTab)
@@ -631,6 +650,7 @@ export function StoreProvider({ children }) {
       updateRoom,
       createRoom,
       joinByCode,
+      joinPublicRoom,
       drawNow,
       undraw,
       reset: logout,
@@ -676,6 +696,7 @@ export function StoreProvider({ children }) {
       updateRoom,
       createRoom,
       joinByCode,
+      joinPublicRoom,
       drawNow,
       undraw,
       requestChange,

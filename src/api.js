@@ -58,8 +58,12 @@ export const api = {
   me: () => request('/api/me'),
   rooms: () => request('/api/rooms'),
   archivedRooms: () => request('/api/rooms/archived'),
+  publicRooms: (q = '') =>
+    request(`/api/rooms/public${q ? `?q=${encodeURIComponent(q)}` : ''}`),
   createRoom: (body) => request('/api/rooms', { method: 'POST', body: JSON.stringify(body) }),
   joinRoom: (code) => request('/api/rooms/join', { method: 'POST', body: JSON.stringify({ code }) }),
+  joinPublicRoom: (roomId) =>
+    request('/api/rooms/join-public', { method: 'POST', body: JSON.stringify({ roomId }) }),
   room: (id) => request(`/api/rooms/${id}`),
   updateRoom: (id, body) => request(`/api/rooms/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   deleteRoom: (id) => request(`/api/rooms/${id}`, { method: 'DELETE' }),
@@ -75,10 +79,29 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ fromRoomId }),
     }),
+  personalWishlists: () => request('/api/me/wishlists'),
+  createPersonalWishlist: (body) =>
+    request('/api/me/wishlists', { method: 'POST', body: JSON.stringify(body) }),
+  personalWishlist: (id) => request(`/api/me/wishlists/${id}`),
+  updatePersonalWishlist: (id, body) =>
+    request(`/api/me/wishlists/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+  deletePersonalWishlist: (id) => request(`/api/me/wishlists/${id}`, { method: 'DELETE' }),
+  addPersonalWishlistItem: (id, body) =>
+    request(`/api/me/wishlists/${id}/items`, { method: 'POST', body: JSON.stringify(body) }),
+  removePersonalWishlistItem: (id, itemId) =>
+    request(`/api/me/wishlists/${id}/items/${itemId}`, { method: 'DELETE' }),
+  attachPersonalWishlist: (id, roomId) =>
+    request(`/api/me/wishlists/${id}/attach`, { method: 'POST', body: JSON.stringify({ roomId }) }),
+  sharedWishlist: (token) => request(`/api/wishlists/shared/${token}`),
   uploadImage: async (roomId, file) => {
     const fd = new FormData()
     fd.append('file', file)
     return request(`/api/rooms/${roomId}/me/images`, { method: 'POST', body: fd })
+  },
+  uploadMyImage: async (file) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return request('/api/me/images', { method: 'POST', body: fd })
   },
   assignment: (id) => request(`/api/rooms/${id}/assignment`),
   leaveRoom: (id) => request(`/api/rooms/${id}/leave`, { method: 'POST' }),

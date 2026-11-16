@@ -242,7 +242,7 @@ function IconGear({ active }) {
 }
 
 export function Header() {
-  const { data, room, isRevealed, isAdmin, canTune } = useStore()
+  const { data, room, isRevealed } = useStore()
   const go = useGo()
   const location = useLocation()
   const [open, setOpen] = useState(false)
@@ -269,11 +269,6 @@ export function Header() {
     go(to, token)
   }
 
-  function onColors() {
-    setOpen(false)
-    go('/colors', token)
-  }
-
   function onAccount() {
     setOpen(false)
     travel(user ? '/cabinet' : '/enter')
@@ -290,14 +285,8 @@ export function Header() {
       to: user ? '/cabinet' : '/enter',
       label: 'Профиль',
       icon: IconProfile,
-      match: path === '/cabinet' || path === '/enter',
+      match: path === '/cabinet' || path === '/enter' || path.startsWith('/shared'),
     },
-    isAdmin
-      ? { id: 'people', to: '/colors', label: 'Люди', icon: IconPeople, match: path === '/colors' }
-      : null,
-    canTune
-      ? { id: 'admin', to: '/admin', label: 'Ещё', icon: IconGear, match: path === '/admin' }
-      : null,
   ].filter(Boolean)
 
   return (
@@ -330,19 +319,9 @@ export function Header() {
                 Комната
               </button>
             )}
-            {isAdmin && (
-              <button type="button" className="menu-link" onClick={onColors}>
-                Участники
-              </button>
-            )}
             <button type="button" className="menu-link" onClick={onAccount}>
               Профиль
             </button>
-            {canTune && (
-              <button type="button" className="menu-link" onClick={() => travel('/admin')}>
-                Настройки
-              </button>
-            )}
             <button type="button" className="menu-link" onClick={() => travel('/rules')}>
               Правила
             </button>
