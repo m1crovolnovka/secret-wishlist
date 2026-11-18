@@ -11,19 +11,64 @@ function LegalShell({ crumb, title, children }) {
       <p className="crumb">{crumb}</p>
       <h1>{title}</h1>
       <div className="legal-body">{children}</div>
-      <button className="text-btn" type="button" onClick={() => navigate(-1)}>
-        Назад
-      </button>
-      <button className="text-btn" type="button" onClick={() => go('/')}>
-        На главную
-      </button>
+      <div className="legal-nav">
+        <button className="text-btn" type="button" onClick={() => navigate(-1)}>
+          Назад
+        </button>
+        <button className="text-btn" type="button" onClick={() => go('/legal')}>
+          К документам
+        </button>
+        <button className="text-btn" type="button" onClick={() => go('/')}>
+          На главную
+        </button>
+      </div>
+    </section>
+  )
+}
+
+/** Hub for rules and legal docs — opened from burger menu. */
+export function LegalIndex() {
+  const go = useGo()
+  useTitle('о сервисе')
+  return (
+    <section className="sheet legal-page">
+      <p className="crumb">меню</p>
+      <h1>О сервисе</h1>
+      <p className="note">Правила, документы и сведения о проекте — в одном месте.</p>
+      <nav className="legal-index">
+        <button type="button" className="legal-index-link" onClick={() => go('/rules')}>
+          <strong>Правила</strong>
+          <span>Как устроена раздача и анонимность</span>
+        </button>
+        <button type="button" className="legal-index-link" onClick={() => go('/legal/privacy')}>
+          <strong>Конфиденциальность</strong>
+          <span>Какие данные храним и как защищаем</span>
+        </button>
+        <button type="button" className="legal-index-link" onClick={() => go('/legal/terms')}>
+          <strong>Условия использования</strong>
+          <span>Правила пользования сервисом</span>
+        </button>
+        <button type="button" className="legal-index-link" onClick={() => go('/legal/cookies')}>
+          <strong>Политика cookie</strong>
+          <span>Что сохраняется на устройстве</span>
+        </button>
+        <button type="button" className="legal-index-link" onClick={() => go('/legal/developers')}>
+          <strong>Разработчики</strong>
+          <span>О проекте и обратная связь</span>
+        </button>
+      </nav>
+      <div className="legal-nav">
+        <button className="text-btn" type="button" onClick={() => go('/')}>
+          На главную
+        </button>
+      </div>
     </section>
   )
 }
 
 export function Privacy() {
   return (
-    <LegalShell crumb="юридическое" title="Политика конфиденциальности">
+    <LegalShell crumb="о сервисе" title="Политика конфиденциальности">
       <p>
         Тайно обрабатывает данные, необходимые для работы Mini App: идентификатор Telegram, имя и username
         (хранятся в зашифрованном виде), состав комнат, вишлисты и служебные журналы действий.
@@ -36,14 +81,14 @@ export function Privacy() {
         Вы можете покинуть комнату (до раздачи) или попросить владельца удалить комнату. Удаление комнаты стирает
         связанные вишлисты и назначения.
       </p>
-      <p>По вопросам персональных данных: раздел «Разработчики».</p>
+      <p>По вопросам персональных данных смотрите раздел «Разработчики» в меню «О сервисе».</p>
     </LegalShell>
   )
 }
 
 export function Terms() {
   return (
-    <LegalShell crumb="юридическое" title="Условия пользования">
+    <LegalShell crumb="о сервисе" title="Условия использования">
       <p>
         Сервис предназначен для добровольного обмена подарками между участниками, согласившимися на правила
         комнаты. Запрещены мошенничество, спам, публикация незаконного контента и попытки обойти анонимность
@@ -53,20 +98,23 @@ export function Terms() {
         Владелец комнаты отвечает за приглашения и настройки. Администрация сервиса может ограничить доступ при
         злоупотреблениях. Сервис предоставляется «как есть»; возможны технические перерывы.
       </p>
+      <p>
+        Открывая приложение и пользуясь Тайно, ты принимаешь эти условия и политику конфиденциальности.
+      </p>
     </LegalShell>
   )
 }
 
 export function Cookies() {
   return (
-    <LegalShell crumb="юридическое" title="Политика cookies">
+    <LegalShell crumb="о сервисе" title="Политика cookie">
       <p>
         Тайно — Telegram Mini App. Мы не используем стороннюю рекламную cookie-аналитику. В локальном хранилище
-        браузера / WebView сохраняются: JWT сессии, выбранная комната, флаг согласия с политикой.
+        браузера / WebView сохраняются JWT-сессия и выбранная комната для удобства входа.
       </p>
       <p>
-        Эти данные нужны для входа и удобства. Очистка данных Telegram / Mini App удаляет локальные значения.
-        Серверные сессии истекают по TTL JWT.
+        Эти данные нужны для работы приложения. Очистка данных Telegram или Mini App удаляет локальные значения.
+        Серверные сессии истекают по сроку действия JWT.
       </p>
     </LegalShell>
   )
@@ -74,17 +122,15 @@ export function Cookies() {
 
 export function Developers() {
   return (
-    <LegalShell crumb="о проекте" title="Разработчики">
+    <LegalShell crumb="о сервисе" title="Разработчики">
       <p>
-        <strong>Тайно</strong> — независимый pet-проект анонимных (и открытых) раздач вишлистов в Telegram.
+        <strong>Тайно</strong> — независимый проект анонимных и открытых раздач вишлистов в Telegram.
       </p>
       <p>
         Технологии: Spring Boot, PostgreSQL, React, Telegram Mini Apps SDK. Шрифты: Source Sans 3 и Source Code Pro
-        (SIL Open Font License).
+        (лицензия SIL Open Font License).
       </p>
-      <p>
-        Обратная связь и вопросы по данным: напишите боту приложения или владельцу репозитория проекта TAINO.
-      </p>
+      <p>Обратная связь и вопросы по данным: напишите боту приложения.</p>
     </LegalShell>
   )
 }
@@ -99,7 +145,7 @@ export function MaintenanceScreen({ message }) {
       <p className="crumb">сервис</p>
       <h1>Технические работы</h1>
       <p className="note">
-        {message || 'Бэкенд сейчас недоступен. Мы уже чиним — открой приложение чуть позже из Telegram.'}
+        {message || 'Сервер сейчас недоступен. Мы уже чиним — открой приложение чуть позже из Telegram.'}
       </p>
       <button className="fill" type="button" onClick={() => window.location.reload()}>
         Попробовать снова

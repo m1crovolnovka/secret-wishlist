@@ -1,8 +1,26 @@
 import { useEffect } from 'react'
 import { Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import { Header, Pour, ScrollReset } from './components'
-import { Cookies, Developers, ErrorScreen, MaintenanceScreen, Privacy, Terms } from './legal'
-import { Admin, Cabinet, Colors, Enter, NewRoom, RoomLobby, Rooms, Rules, SharedWishlist } from './pages'
+import {
+  Cookies,
+  Developers,
+  ErrorScreen,
+  LegalIndex,
+  MaintenanceScreen,
+  Privacy,
+  Terms,
+} from './legal'
+import {
+  Admin,
+  Cabinet,
+  Colors,
+  Enter,
+  NewRoom,
+  RoomLobby,
+  Rooms,
+  Rules,
+  SharedWishlist,
+} from './pages'
 import { useStore } from './store'
 import { showBackButton } from './telegram'
 
@@ -54,17 +72,19 @@ export default function App() {
         <main className="guest-main">
           <Routes>
             <Route path="/shared/:token" element={<SharedWishlist guest />} />
+            <Route path="/legal" element={<LegalIndex />} />
             <Route path="/legal/privacy" element={<Privacy />} />
             <Route path="/legal/terms" element={<Terms />} />
             <Route path="/legal/cookies" element={<Cookies />} />
             <Route path="/legal/developers" element={<Developers />} />
+            <Route path="/rules" element={<Rules />} />
             <Route
               path="*"
               element={
                 <ErrorScreen
                   code="просмотр"
                   title="Открой в Telegram"
-                  message="Полное приложение работает только как Mini App. Эту страницу открыли без Telegram."
+                  message="Полное приложение работает только как Mini App. Эту страницу открыли вне Telegram."
                 />
               }
             />
@@ -90,6 +110,7 @@ export default function App() {
           <Route path="/cabinet" element={<Cabinet />} />
           <Route path="/shared/:token" element={<SharedWishlist />} />
           <Route path="/enter" element={<Enter />} />
+          <Route path="/legal" element={<LegalIndex />} />
           <Route path="/legal/privacy" element={<Privacy />} />
           <Route path="/legal/terms" element={<Terms />} />
           <Route path="/legal/cookies" element={<Cookies />} />

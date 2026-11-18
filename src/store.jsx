@@ -263,7 +263,7 @@ export function StoreProvider({ children }) {
           return
         }
         const message = offline
-          ? 'Бэкенд не отвечает. Ведутся технические работы — зайди чуть позже.'
+          ? 'Сервер не отвечает. Ведутся технические работы — зайди чуть позже.'
           : err.message || 'Ошибка входа'
         if (!cancelled) {
           setBoot({
