@@ -30,6 +30,7 @@ import {
 import { api } from './api'
 import { compressImageFile } from './imageCompress'
 import { useGo, useStore } from './store'
+import { haptic } from './telegram'
 
 function RuDateTimeInput({ value, onChange }) {
   const ts = value ? fromInput(value) || (typeof value === 'number' ? value : null) : null
@@ -1488,6 +1489,9 @@ export function Cabinet() {
   const [hint, setHint] = useState('')
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
+  const [sharePanel, setSharePanel] = useState(null)
+  const [shareFlash, setShareFlash] = useState('')
+  const shareRef = useRef(null)
   const [consent, setConsent] = useState(() => localStorage.getItem('taino-consent') === '1')
   useTitle('профиль')
 
@@ -1520,6 +1524,8 @@ export function Cabinet() {
   async function toggleList(id) {
     setHint('')
     setErr('')
+    setSharePanel(null)
+    setShareFlash('')
     if (expandedId === id) {
       setExpandedId(null)
       setDetail(null)
@@ -1620,33 +1626,51 @@ export function Cabinet() {
     await refreshLists()
   }
 
-  async function shareList() {
-    const token = detail?.shareToken
-    if (!token) {
+  function openSharePanel() {
+    if (!detail?.shareToken) {
       setErr('Нет ссылки для этого списка')
       return
     }
-    const url = `${window.location.origin}/shared/${token}`
-    const text = `Вишлист «${detail.title}» в Тайно`
+    const telegramUrl =
+      detail.telegramShareUrl ||
+      `${window.location.origin}/shared/${detail.shareToken}`
+    const webUrl =
+      detail.webShareUrl || `${window.location.origin}/shared/${detail.shareToken}`
+    setSharePanel({ telegramUrl, webUrl, title: detail.title })
+    setShareFlash('')
+    setHint('')
+    requestAnimationFrame(() => {
+      shareRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    })
+  }
+
+  async function copyShareUrl(url, label) {
+    try {
+      await navigator.clipboard.writeText(url)
+      setShareFlash(label || 'Ссылка скопирована')
+      haptic('success')
+    } catch {
+      setShareFlash(url)
+    }
+  }
+
+  async function shareViaTelegram() {
+    if (!sharePanel) return
+    const text = `Вишлист «${sharePanel.title}» в Тайно`
+    const url = sharePanel.telegramUrl
+    const tgShare = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`
     try {
       if (navigator.share) {
-        await navigator.share({ title: detail.title, text, url })
-        setHint('Отправлено')
+        await navigator.share({ title: sharePanel.title, text, url })
+        setShareFlash('Отправлено')
+        haptic('success')
         return
       }
     } catch {
       /* fall through */
     }
-    try {
-      await navigator.clipboard.writeText(url)
-      setHint('Ссылка скопирована')
-      return
-    } catch {
-      /* fall through */
-    }
-    const tgShare = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`
     window.open(tgShare, '_blank', 'noopener,noreferrer')
-    setHint(url)
+    setShareFlash('Открыл окно «Поделиться» в Telegram')
   }
 
   return (
@@ -1737,7 +1761,7 @@ export function Cabinet() {
                 {open && detail?.id === item.id && (
                   <div className="wish-card-body">
                     <div className="row-actions">
-                      <button className="text-btn" type="button" onClick={shareList}>
+                      <button className="text-btn" type="button" onClick={openSharePanel}>
                         Поделиться
                       </button>
                       <button className="text-btn danger-btn" type="button" onClick={removeList}>
@@ -1747,6 +1771,47 @@ export function Cabinet() {
                         Свернуть
                       </button>
                     </div>
+                    {sharePanel && (
+                      <div className="share-panel" ref={shareRef}>
+                        <div className="label">
+                          <Squiggle />
+                          <span>поделиться · {sharePanel.title}</span>
+                        </div>
+                        <p className="note">
+                          Лучше слать ссылку Telegram — она откроет Mini App. Ссылка для браузера — только
+                          просмотр списка без входа.
+                        </p>
+                        <p className="share-label">Telegram Mini App</p>
+                        <code className="share-url">{sharePanel.telegramUrl}</code>
+                        <div className="row-actions">
+                          <button
+                            className="fill"
+                            type="button"
+                            onClick={() => copyShareUrl(sharePanel.telegramUrl, 'Ссылка Telegram скопирована')}
+                          >
+                            Скопировать
+                          </button>
+                          <button className="text-btn" type="button" onClick={shareViaTelegram}>
+                            Отправить в Telegram
+                          </button>
+                        </div>
+                        <p className="share-label">Браузер (просмотр)</p>
+                        <code className="share-url">{sharePanel.webUrl}</code>
+                        <div className="row-actions">
+                          <button
+                            className="text-btn"
+                            type="button"
+                            onClick={() => copyShareUrl(sharePanel.webUrl, 'Ссылка для браузера скопирована')}
+                          >
+                            Скопировать веб-ссылку
+                          </button>
+                          <button className="text-btn" type="button" onClick={() => setSharePanel(null)}>
+                            Закрыть
+                          </button>
+                        </div>
+                        {shareFlash && <p className="share-flash">{shareFlash}</p>}
+                      </div>
+                    )}
                     <form className="stack-form wish-form" onSubmit={addItem}>
                       <div className="label">
                         <Squiggle />
@@ -1842,11 +1907,13 @@ export function Cabinet() {
   )
 }
 
-export function SharedWishlist() {
+export function SharedWishlist({ guest = false }) {
   const { token } = useParams()
   const [data, setData] = useState(null)
   const [err, setErr] = useState('')
   const go = useGo()
+  const { boot } = useStore()
+  const isGuest = guest || boot.guest
   useTitle('вишлист')
 
   useEffect(() => {
@@ -1869,9 +1936,11 @@ export function SharedWishlist() {
       <section className="sheet missing">
         <h1>Нет доступа</h1>
         <p className="note">{err}</p>
-        <button className="text-btn" type="button" onClick={() => go('/')}>
-          На главную
-        </button>
+        {!isGuest && (
+          <button className="text-btn" type="button" onClick={() => go('/')}>
+            На главную
+          </button>
+        )}
       </section>
     )
   }
@@ -1886,9 +1955,13 @@ export function SharedWishlist() {
 
   return (
     <section className="sheet cabinet cab-spaced">
-      <p className="crumb">общий вишлист</p>
+      <p className="crumb">{isGuest ? 'общий просмотр' : 'общий вишлист'}</p>
       <h1>{data.title}</h1>
-      <p className="note">Только просмотр. Чтобы сохранить себе — создай свой список в профиле.</p>
+      <p className="note">
+        {isGuest
+          ? 'Публичный просмотр без входа. Полный функционал (комнаты, свой вишлист) — только в Telegram Mini App.'
+          : 'Только просмотр. Свой список создаётся в профиле.'}
+      </p>
       {data.items?.length === 0 ? (
         <p className="note">Пусто.</p>
       ) : (
