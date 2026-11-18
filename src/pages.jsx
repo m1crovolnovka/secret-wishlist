@@ -961,12 +961,17 @@ export function NewRoom() {
   const [giftBy, setGiftBy] = useState(() => toInput(Date.now() + 24 * 86400000))
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
+  const [consent, setConsent] = useState(() => localStorage.getItem('taino-consent') === '1')
   const look = themeOf(theme)
   const cash = currencyOf(currency)
   useTitle('новая комната')
 
   async function submit(event) {
     event.preventDefault()
+    if (!consent) {
+      setErr('Нужно согласие с политикой и условиями')
+      return
+    }
     if (title.trim().length < 2) {
       setErr('как назвать комнату?')
       return
@@ -984,6 +989,7 @@ export function NewRoom() {
     setBusy(true)
     setErr('')
     try {
+      localStorage.setItem('taino-consent', '1')
       await createRoom({
         title: title.trim(),
         theme,
@@ -1104,6 +1110,19 @@ export function NewRoom() {
         <label className="line">
           <span>подарить до</span>
           <RuDateTimeInput value={giftBy} onChange={(event) => setGiftBy(event.target.value)} />
+        </label>
+        <label className="consent">
+          <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
+          <span>
+            Согласен с{' '}
+            <button type="button" className="inline-link" onClick={() => go('/legal/privacy')}>
+              политикой
+            </button>{' '}
+            и{' '}
+            <button type="button" className="inline-link" onClick={() => go('/legal/terms')}>
+              условиями
+            </button>
+          </span>
         </label>
         {err && <p className="err">{err}</p>}
         <button className="fill" type="submit" disabled={busy}>
@@ -1454,36 +1473,29 @@ export function Enter() {
 }
 
 export function Cabinet() {
-  const { data, rooms } = useStore()
+  const { data } = useStore()
   const go = useGo()
   const fileRef = useRef(null)
   const [lists, setLists] = useState([])
-  const [activeId, setActiveId] = useState(null)
+  const [expandedId, setExpandedId] = useState(null)
   const [detail, setDetail] = useState(null)
+  const [creating, setCreating] = useState(false)
   const [newTitle, setNewTitle] = useState('')
   const [itemTitle, setItemTitle] = useState('')
   const [itemUrl, setItemUrl] = useState('')
   const [file, setFile] = useState(null)
   const [fileName, setFileName] = useState('')
-  const [attachRoom, setAttachRoom] = useState('')
   const [hint, setHint] = useState('')
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
+  const [consent, setConsent] = useState(() => localStorage.getItem('taino-consent') === '1')
   useTitle('профиль')
 
   const displayName = data.user?.firstName || data.user?.username || 'ты'
 
-  async function refreshLists(preferredId) {
+  async function refreshLists() {
     const list = await api.personalWishlists()
     setLists(list || [])
-    const nextId = preferredId || list?.[0]?.id || null
-    setActiveId(nextId)
-    if (nextId) {
-      const d = await api.personalWishlist(nextId)
-      setDetail(d)
-    } else {
-      setDetail(null)
-    }
     return list
   }
 
@@ -1493,13 +1505,7 @@ export function Cabinet() {
     ;(async () => {
       try {
         const list = await api.personalWishlists()
-        if (cancelled) return
-        setLists(list || [])
-        if (list?.[0]) {
-          setActiveId(list[0].id)
-          const d = await api.personalWishlist(list[0].id)
-          if (!cancelled) setDetail(d)
-        }
+        if (!cancelled) setLists(list || [])
       } catch (e) {
         if (!cancelled) setErr(e.message || 'Не удалось загрузить вишлисты')
       }
@@ -1511,8 +1517,32 @@ export function Cabinet() {
 
   if (!data.user) return <Navigate to="/enter" replace />
 
+  async function toggleList(id) {
+    setHint('')
+    setErr('')
+    if (expandedId === id) {
+      setExpandedId(null)
+      setDetail(null)
+      return
+    }
+    setBusy(true)
+    try {
+      const d = await api.personalWishlist(id)
+      setDetail(d)
+      setExpandedId(id)
+    } catch (e) {
+      setErr(e.message || 'не удалось открыть')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function createList(event) {
     event.preventDefault()
+    if (!consent) {
+      setErr('Нужно согласие с политикой и условиями')
+      return
+    }
     if (!newTitle.trim()) {
       setErr('нужно название')
       return
@@ -1520,25 +1550,17 @@ export function Cabinet() {
     setBusy(true)
     setErr('')
     try {
+      localStorage.setItem('taino-consent', '1')
       const created = await api.createPersonalWishlist({ title: newTitle.trim() })
       setNewTitle('')
-      await refreshLists(created.id)
+      setCreating(false)
+      await refreshLists()
+      await toggleList(created.id)
       setHint('Вишлист создан')
     } catch (e) {
       setErr(e.message || 'не удалось создать')
     } finally {
       setBusy(false)
-    }
-  }
-
-  async function openList(id) {
-    setActiveId(id)
-    setHint('')
-    setErr('')
-    try {
-      setDetail(await api.personalWishlist(id))
-    } catch (e) {
-      setErr(e.message || 'не удалось открыть')
     }
   }
 
@@ -1574,7 +1596,7 @@ export function Cabinet() {
       setFileName('')
       if (fileRef.current) fileRef.current.value = ''
       setDetail(await api.personalWishlist(detail.id))
-      await refreshLists(detail.id)
+      await refreshLists()
     } catch (e) {
       setErr(e.message || 'не удалось добавить')
     } finally {
@@ -1586,46 +1608,49 @@ export function Cabinet() {
     if (!detail?.id) return
     await api.removePersonalWishlistItem(detail.id, itemId)
     setDetail(await api.personalWishlist(detail.id))
-    await refreshLists(detail.id)
+    await refreshLists()
   }
 
   async function removeList() {
     if (!detail?.id) return
     if (!window.confirm(`Удалить вишлист «${detail.title}»?`)) return
     await api.deletePersonalWishlist(detail.id)
-    setActiveId(null)
+    setExpandedId(null)
     setDetail(null)
-    await refreshLists(null)
+    await refreshLists()
   }
 
   async function shareList() {
-    if (!detail?.shareUrl) return
+    const token = detail?.shareToken
+    if (!token) {
+      setErr('Нет ссылки для этого списка')
+      return
+    }
+    const url = `${window.location.origin}/shared/${token}`
+    const text = `Вишлист «${detail.title}» в Тайно`
     try {
-      await navigator.clipboard.writeText(detail.shareUrl)
-      setHint('Ссылка скопирована')
+      if (navigator.share) {
+        await navigator.share({ title: detail.title, text, url })
+        setHint('Отправлено')
+        return
+      }
     } catch {
-      setHint(detail.shareUrl)
+      /* fall through */
     }
-  }
-
-  async function attachToRoom() {
-    if (!detail?.id || !attachRoom) return
-    setBusy(true)
-    setErr('')
     try {
-      const result = await api.attachPersonalWishlist(detail.id, Number(attachRoom))
-      setHint(
-        `Добавлено в комнату: ${result.copied}${result.skipped ? `, пропущено: ${result.skipped}` : ''}`,
-      )
-    } catch (e) {
-      setErr(e.message || 'не удалось добавить в комнату')
-    } finally {
-      setBusy(false)
+      await navigator.clipboard.writeText(url)
+      setHint('Ссылка скопирована')
+      return
+    } catch {
+      /* fall through */
     }
+    const tgShare = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`
+    window.open(tgShare, '_blank', 'noopener,noreferrer')
+    setHint(url)
   }
 
   return (
-    <section className="sheet cabinet">
+    <section className="sheet cabinet cab-spaced">
       <div className="cab-head">
         <div>
           <p className="crumb">профиль</p>
@@ -1635,151 +1660,184 @@ export function Cabinet() {
             <button className="text-btn" type="button" onClick={() => go('/')}>
               Мои комнаты
             </button>
+            <button className="text-btn" type="button" onClick={() => go('/legal/privacy')}>
+              Конфиденциальность
+            </button>
           </div>
         </div>
       </div>
 
-      <form className="stack-form" onSubmit={createList}>
+      <div className="cab-block">
         <div className="label">
           <Squiggle />
-          <span>создать вишлист</span>
+          <span>мои вишлисты</span>
         </div>
-        <p className="note">Без привязки к комнате. Потом можно добавить в любую комнату или поделиться ссылкой.</p>
-        <label className="line">
-          <span>название</span>
-          <input
-            value={newTitle}
-            onChange={(e) => setNewTitle(e.target.value)}
-            placeholder="День рождения, Новый год…"
-          />
-        </label>
-        <button className="fill" type="submit" disabled={busy}>
-          {busy ? 'Создаю…' : 'Создать вишлист'}
-        </button>
-      </form>
-
-      <div className="label space">
-        <Squiggle />
-        <span>мои вишлисты</span>
-      </div>
-      {lists.length === 0 ? (
-        <p className="note">Пока пусто — создай первый список.</p>
-      ) : (
-        <div className="room-pills">
-          {lists.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={item.id === activeId ? 'on' : ''}
-              onClick={() => openList(item.id)}
-            >
-              {item.title}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {detail && (
-        <div className="personal-wish">
-          <div className="row-actions">
-            <button className="text-btn" type="button" onClick={shareList}>
-              Поделиться
-            </button>
-            <button className="text-btn danger-btn" type="button" onClick={removeList}>
-              Удалить список
-            </button>
-          </div>
-          {rooms.length > 0 && (
-            <div className="copy-wish">
-              <div className="label">
-                <Squiggle />
-                <span>добавить в комнату</span>
-              </div>
-              <div className="row-actions">
-                <select value={attachRoom} onChange={(e) => setAttachRoom(e.target.value)}>
-                  <option value="">выбери комнату</option>
-                  {rooms.map((item) => (
-                    <option key={item.id} value={item.numericId}>
-                      {item.title}
-                    </option>
-                  ))}
-                </select>
-                <button className="text-btn" type="button" disabled={!attachRoom || busy} onClick={attachToRoom}>
-                  Добавить
-                </button>
-              </div>
-            </div>
-          )}
-          <form className="stack-form wish-form" onSubmit={addItem}>
-            <div className="label">
-              <Squiggle />
-              <span>новое желание · {detail.title}</span>
-            </div>
+        <p className="note">Нажми на список, чтобы раскрыть. Форма желаний только внутри открытого списка.</p>
+        {!creating ? (
+          <button className="fill" type="button" onClick={() => setCreating(true)}>
+            Создать вишлист
+          </button>
+        ) : (
+          <form className="stack-form cab-create" onSubmit={createList}>
             <label className="line">
               <span>название</span>
-              <input value={itemTitle} onChange={(e) => setItemTitle(e.target.value)} />
-            </label>
-            <label className="line">
-              <span>ссылка на покупку</span>
               <input
-                value={itemUrl}
-                onChange={(e) => setItemUrl(e.target.value)}
-                placeholder="https://"
-                inputMode="url"
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                placeholder="День рождения, Новый год…"
+                autoFocus
               />
             </label>
-            <div className="photo-row">
+            <label className="consent">
               <input
-                ref={fileRef}
-                type="file"
-                accept="image/*"
-                hidden
-                onChange={(e) => {
-                  const next = e.target.files?.[0]
-                  setFile(next || null)
-                  setFileName(next?.name || '')
-                }}
+                type="checkbox"
+                checked={consent}
+                onChange={(e) => setConsent(e.target.checked)}
               />
-              <button className="text-btn" type="button" onClick={() => fileRef.current?.click()}>
-                {fileName || 'Прикрепить фото'}
+              <span>
+                Согласен с{' '}
+                <button type="button" className="inline-link" onClick={() => go('/legal/privacy')}>
+                  политикой
+                </button>{' '}
+                и{' '}
+                <button type="button" className="inline-link" onClick={() => go('/legal/terms')}>
+                  условиями
+                </button>
+              </span>
+            </label>
+            <div className="row-actions">
+              <button className="fill" type="submit" disabled={busy}>
+                {busy ? 'Создаю…' : 'Создать'}
+              </button>
+              <button className="text-btn" type="button" onClick={() => setCreating(false)}>
+                Отмена
               </button>
             </div>
-            <button className="fill" type="submit" disabled={busy}>
-              {busy ? 'Добавляю…' : 'Добавить'}
-            </button>
           </form>
-          {detail.items?.length === 0 ? (
-            <p className="note">Список пуст.</p>
-          ) : (
-            <ul className="mine">
-              {detail.items.map((gift) => (
-                <li key={gift.id}>
-                  <div className="frame">
-                    <Photo src={gift.imageUrl} alt={gift.title} />
-                  </div>
-                  <div>
-                    <h3>{gift.title}</h3>
-                    <div className="item-actions">
-                      {gift.url ? (
-                        <a className="buy" href={gift.url} target="_blank" rel="noreferrer">
-                          к покупке
-                        </a>
-                      ) : (
-                        <span className="demo-hint">без ссылки</span>
-                      )}
-                      <button className="text-btn" type="button" onClick={() => removeItem(gift.id)}>
-                        убрать
+        )}
+      </div>
+
+      <div className="wish-accordion">
+        {lists.length === 0 ? (
+          <p className="note">Пока пусто — создай первый список.</p>
+        ) : (
+          lists.map((item) => {
+            const open = expandedId === item.id
+            return (
+              <article key={item.id} className={open ? 'wish-card open' : 'wish-card'}>
+                <button className="wish-card-head" type="button" onClick={() => toggleList(item.id)}>
+                  <span>
+                    <strong>{item.title}</strong>
+                    <em>{item.itemCount || 0} жел.</em>
+                  </span>
+                  <span className="wish-chevron" aria-hidden="true">
+                    {open ? '−' : '+'}
+                  </span>
+                </button>
+                {open && detail?.id === item.id && (
+                  <div className="wish-card-body">
+                    <div className="row-actions">
+                      <button className="text-btn" type="button" onClick={shareList}>
+                        Поделиться
+                      </button>
+                      <button className="text-btn danger-btn" type="button" onClick={removeList}>
+                        Удалить список
+                      </button>
+                      <button className="text-btn" type="button" onClick={() => toggleList(item.id)}>
+                        Свернуть
                       </button>
                     </div>
+                    <form className="stack-form wish-form" onSubmit={addItem}>
+                      <div className="label">
+                        <Squiggle />
+                        <span>новое желание</span>
+                      </div>
+                      <label className="line">
+                        <span>название</span>
+                        <input value={itemTitle} onChange={(e) => setItemTitle(e.target.value)} />
+                      </label>
+                      <label className="line">
+                        <span>ссылка на покупку</span>
+                        <input
+                          value={itemUrl}
+                          onChange={(e) => setItemUrl(e.target.value)}
+                          placeholder="https://"
+                          inputMode="url"
+                        />
+                      </label>
+                      <div className="photo-row">
+                        <input
+                          ref={fileRef}
+                          type="file"
+                          accept="image/*"
+                          hidden
+                          onChange={(e) => {
+                            const next = e.target.files?.[0]
+                            setFile(next || null)
+                            setFileName(next?.name || '')
+                          }}
+                        />
+                        <button className="text-btn" type="button" onClick={() => fileRef.current?.click()}>
+                          {fileName || 'Прикрепить фото'}
+                        </button>
+                      </div>
+                      <button className="fill" type="submit" disabled={busy}>
+                        {busy ? 'Добавляю…' : 'Добавить'}
+                      </button>
+                    </form>
+                    {detail.items?.length === 0 ? (
+                      <p className="note">Список пуст.</p>
+                    ) : (
+                      <ul className="mine">
+                        {detail.items.map((gift) => (
+                          <li key={gift.id}>
+                            <div className="frame">
+                              <Photo src={gift.imageUrl} alt={gift.title} />
+                            </div>
+                            <div>
+                              <h3>{gift.title}</h3>
+                              <div className="item-actions">
+                                {gift.url ? (
+                                  <a className="buy" href={gift.url} target="_blank" rel="noreferrer">
+                                    к покупке
+                                  </a>
+                                ) : (
+                                  <span className="demo-hint">без ссылки</span>
+                                )}
+                                <button className="text-btn" type="button" onClick={() => removeItem(gift.id)}>
+                                  убрать
+                                </button>
+                              </div>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
+                )}
+              </article>
+            )
+          })
+        )}
+      </div>
+
       {hint && <p className="demo-hint">{hint}</p>}
       {err && <p className="err">{err}</p>}
+
+      <footer className="legal-foot">
+        <button type="button" className="inline-link" onClick={() => go('/legal/privacy')}>
+          Политика
+        </button>
+        <button type="button" className="inline-link" onClick={() => go('/legal/terms')}>
+          Условия
+        </button>
+        <button type="button" className="inline-link" onClick={() => go('/legal/cookies')}>
+          Cookies
+        </button>
+        <button type="button" className="inline-link" onClick={() => go('/legal/developers')}>
+          Разработчики
+        </button>
+      </footer>
     </section>
   )
 }
@@ -1827,7 +1885,7 @@ export function SharedWishlist() {
   }
 
   return (
-    <section className="sheet cabinet">
+    <section className="sheet cabinet cab-spaced">
       <p className="crumb">общий вишлист</p>
       <h1>{data.title}</h1>
       <p className="note">Только просмотр. Чтобы сохранить себе — создай свой список в профиле.</p>

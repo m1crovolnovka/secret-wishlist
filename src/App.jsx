@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import { Header, Pour, ScrollReset } from './components'
+import { Cookies, Developers, ErrorScreen, MaintenanceScreen, Privacy, Terms } from './legal'
 import { Admin, Cabinet, Colors, Enter, NewRoom, RoomLobby, Rooms, Rules, SharedWishlist } from './pages'
 import { useStore } from './store'
 import { showBackButton } from './telegram'
@@ -31,12 +32,18 @@ export default function App() {
     )
   }
 
+  if (boot.errorCode === 'MAINTENANCE') {
+    return <MaintenanceScreen message={boot.error} />
+  }
+
   if (boot.error) {
     return (
-      <main className="boot-screen">
-        <h1>Тайно</h1>
-        <p>{boot.error}</p>
-      </main>
+      <ErrorScreen
+        code={boot.errorCode || 'ошибка'}
+        title={boot.errorCode === 'TG_ONLY' ? 'Открой в Telegram' : 'Не удалось войти'}
+        message={boot.error}
+        onRetry={() => window.location.reload()}
+      />
     )
   }
 
@@ -56,6 +63,10 @@ export default function App() {
           <Route path="/cabinet" element={<Cabinet />} />
           <Route path="/shared/:token" element={<SharedWishlist />} />
           <Route path="/enter" element={<Enter />} />
+          <Route path="/legal/privacy" element={<Privacy />} />
+          <Route path="/legal/terms" element={<Terms />} />
+          <Route path="/legal/cookies" element={<Cookies />} />
+          <Route path="/legal/developers" element={<Developers />} />
           <Route path="/lists" element={<Navigate to="/colors" replace />} />
           <Route path="/list/:id" element={<Navigate to="/room" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />

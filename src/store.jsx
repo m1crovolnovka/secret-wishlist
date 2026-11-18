@@ -59,7 +59,7 @@ function mapRoomSummary(summary, detail = null) {
 
 export function StoreProvider({ children }) {
   const navigate = useNavigate()
-  const [boot, setBoot] = useState({ loading: true, error: null })
+  const [boot, setBoot] = useState({ loading: true, error: null, errorCode: null })
   const [user, setUser] = useState(null)
   const [rooms, setRooms] = useState([])
   const [archivedRooms, setArchivedRooms] = useState([])
@@ -213,6 +213,7 @@ export function StoreProvider({ children }) {
             setBoot({
               loading: false,
               error: 'Открой приложение через Telegram Mini App.',
+              errorCode: 'TG_ONLY',
             })
           }
           return
@@ -232,17 +233,28 @@ export function StoreProvider({ children }) {
             // ignore invalid code
           }
         }
+        if (start.startsWith('wish_')) {
+          if (!cancelled) {
+            navigate(`/shared/${start.slice(5)}`)
+          }
+        }
 
         if (!cancelled) {
           await loadRooms()
-          setBoot({ loading: false, error: null })
+          setBoot({ loading: false, error: null, errorCode: null })
         }
       } catch (err) {
-        const message =
-          err?.message === 'Failed to fetch' || err?.name === 'TypeError'
-            ? 'Не удалось связаться с сервером. Попробуй открыть снова из Telegram.'
-            : err.message || 'Ошибка входа'
-        if (!cancelled) setBoot({ loading: false, error: message })
+        const offline = err?.message === 'Failed to fetch' || err?.name === 'TypeError' || err?.status === 502 || err?.status === 503
+        const message = offline
+          ? 'Бэкенд не отвечает. Ведутся технические работы — зайди чуть позже.'
+          : err.message || 'Ошибка входа'
+        if (!cancelled) {
+          setBoot({
+            loading: false,
+            error: message,
+            errorCode: offline ? 'MAINTENANCE' : 'AUTH',
+          })
+        }
       }
     })()
     return () => {

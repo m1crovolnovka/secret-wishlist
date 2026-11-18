@@ -325,6 +325,15 @@ export function Header() {
             <button type="button" className="menu-link" onClick={() => travel('/rules')}>
               Правила
             </button>
+            <button type="button" className="menu-link" onClick={() => travel('/legal/privacy')}>
+              Конфиденциальность
+            </button>
+            <button type="button" className="menu-link" onClick={() => travel('/legal/terms')}>
+              Условия
+            </button>
+            <button type="button" className="menu-link" onClick={() => travel('/legal/developers')}>
+              Разработчики
+            </button>
           </div>
           <div className="menu-foot">
             <span>{room ? `${room.title} · ${isRevealed ? 'список открыт' : 'скоро'}` : 'выбери комнату'}</span>
