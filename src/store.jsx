@@ -59,7 +59,7 @@ function mapRoomSummary(summary, detail = null) {
 
 export function StoreProvider({ children }) {
   const navigate = useNavigate()
-  const [boot, setBoot] = useState({ loading: true, error: null, errorCode: null })
+  const [boot, setBoot] = useState({ loading: true, error: null, errorCode: null, guest: false })
   const [user, setUser] = useState(null)
   const [rooms, setRooms] = useState([])
   const [archivedRooms, setArchivedRooms] = useState([])
@@ -208,12 +208,21 @@ export function StoreProvider({ children }) {
           new Promise((resolve) => setTimeout(resolve, 1500)),
         ])
         const initData = getInitData()
+        const publicShared = window.location.pathname.startsWith('/shared/')
         if (!initData) {
+          if (publicShared) {
+            // Shared wishlist is public — allow browser preview without Telegram.
+            if (!cancelled) {
+              setBoot({ loading: false, error: null, errorCode: null, guest: true })
+            }
+            return
+          }
           if (!cancelled) {
             setBoot({
               loading: false,
               error: 'Открой приложение через Telegram Mini App.',
               errorCode: 'TG_ONLY',
+              guest: false,
             })
           }
           return
@@ -241,10 +250,18 @@ export function StoreProvider({ children }) {
 
         if (!cancelled) {
           await loadRooms()
-          setBoot({ loading: false, error: null, errorCode: null })
+          setBoot({ loading: false, error: null, errorCode: null, guest: false })
         }
       } catch (err) {
         const offline = err?.message === 'Failed to fetch' || err?.name === 'TypeError' || err?.status === 502 || err?.status === 503
+        const publicShared = window.location.pathname.startsWith('/shared/')
+        if (publicShared && !offline) {
+          // Auth failed but we can still show a public shared list.
+          if (!cancelled) {
+            setBoot({ loading: false, error: null, errorCode: null, guest: true })
+          }
+          return
+        }
         const message = offline
           ? 'Бэкенд не отвечает. Ведутся технические работы — зайди чуть позже.'
           : err.message || 'Ошибка входа'
@@ -253,6 +270,7 @@ export function StoreProvider({ children }) {
             loading: false,
             error: message,
             errorCode: offline ? 'MAINTENANCE' : 'AUTH',
+            guest: false,
           })
         }
       }

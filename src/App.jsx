@@ -36,7 +36,7 @@ export default function App() {
     return <MaintenanceScreen message={boot.error} />
   }
 
-  if (boot.error) {
+  if (boot.error && !boot.guest) {
     return (
       <ErrorScreen
         code={boot.errorCode || 'ошибка'}
@@ -44,6 +44,33 @@ export default function App() {
         message={boot.error}
         onRetry={() => window.location.reload()}
       />
+    )
+  }
+
+  if (boot.guest) {
+    return (
+      <>
+        <ScrollReset />
+        <main className="guest-main">
+          <Routes>
+            <Route path="/shared/:token" element={<SharedWishlist guest />} />
+            <Route path="/legal/privacy" element={<Privacy />} />
+            <Route path="/legal/terms" element={<Terms />} />
+            <Route path="/legal/cookies" element={<Cookies />} />
+            <Route path="/legal/developers" element={<Developers />} />
+            <Route
+              path="*"
+              element={
+                <ErrorScreen
+                  code="просмотр"
+                  title="Открой в Telegram"
+                  message="Полное приложение работает только как Mini App. Эту страницу открыли без Telegram."
+                />
+              }
+            />
+          </Routes>
+        </main>
+      </>
     )
   }
 
