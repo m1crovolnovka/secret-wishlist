@@ -72,7 +72,7 @@ function InviteShare({ room }) {
         <span>пригласить в комнату</span>
       </div>
       <p className="note">
-        Ссылка открывает Mini App в комнате и пишет боту в чат — потом можно зайти снова из диалога. Код:{' '}
+        Ссылка открывает Mini App в комнате и создаёт диалог с ботом — потом можно вернуться из чата. Код:{' '}
         <b>{room.code}</b>
       </p>
       <button className="text-btn" type="button" onClick={copy}>
@@ -459,7 +459,7 @@ export function Rules() {
       <div className="rules-copy">
         <p className="crumb">как это работает</p>
         <h1>Правила</h1>
-        <p className="note">Анонимный обмен подарками: вишлисты без имён, раздача по цвету.</p>
+        <p className="note">Анонимный обмен подарками: вишлисты без имён, раздача по цвету списка.</p>
       </div>
       <div className="rules" id="rules">
         <ol>
@@ -471,7 +471,7 @@ export function Rules() {
           <li>
             <b>02</b>
             <h2>Скоро раздача</h2>
-            <p>Пока таймер не дошёл, чужие списки закрыты. Новый человек не выдаёт себя цветом.</p>
+            <p>Пока таймер не дошёл, чужие списки закрыты. Новый участник не выдаёт себя цветом.</p>
           </li>
           <li>
             <b>03</b>
@@ -802,9 +802,9 @@ export function Rooms() {
     <>
       <section className="page-intro">
         <div className="blob blob-a" />
-        <p className="crumb">твои круги</p>
+        <p className="crumb">раздачи</p>
         <h1>Комнаты</h1>
-        <p className="note">Выбери комнату или создай новую. В каждую — свой вишлист и своя раздача.</p>
+        <p className="note">Выбери комнату или создай новую. В каждой — свой вишлист и своя раздача.</p>
         <div className="row-actions room-new">
           <button className="fill" type="button" onClick={() => go('/rooms/new')}>
             Создать комнату
@@ -962,17 +962,12 @@ export function NewRoom() {
   const [giftBy, setGiftBy] = useState(() => toInput(Date.now() + 24 * 86400000))
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
-  const [consent, setConsent] = useState(() => localStorage.getItem('taino-consent') === '1')
   const look = themeOf(theme)
   const cash = currencyOf(currency)
   useTitle('новая комната')
 
   async function submit(event) {
     event.preventDefault()
-    if (!consent) {
-      setErr('Нужно согласие с политикой и условиями')
-      return
-    }
     if (title.trim().length < 2) {
       setErr('как назвать комнату?')
       return
@@ -990,7 +985,6 @@ export function NewRoom() {
     setBusy(true)
     setErr('')
     try {
-      localStorage.setItem('taino-consent', '1')
       await createRoom({
         title: title.trim(),
         theme,
@@ -1112,26 +1106,15 @@ export function NewRoom() {
           <span>подарить до</span>
           <RuDateTimeInput value={giftBy} onChange={(event) => setGiftBy(event.target.value)} />
         </label>
-        <label className="consent">
-          <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
-          <span>
-            Согласен с{' '}
-            <button type="button" className="inline-link" onClick={() => go('/legal/privacy')}>
-              политикой
-            </button>{' '}
-            и{' '}
-            <button type="button" className="inline-link" onClick={() => go('/legal/terms')}>
-              условиями
-            </button>
-          </span>
-        </label>
         {err && <p className="err">{err}</p>}
-        <button className="fill" type="submit" disabled={busy}>
-          {busy ? 'Создаю…' : 'Создать комнату'}
-        </button>
-        <button className="text-btn" type="button" onClick={() => go('/')}>
-          К комнатам
-        </button>
+        <div className="row-actions form-actions">
+          <button className="fill" type="submit" disabled={busy}>
+            {busy ? 'Создаю…' : 'Создать комнату'}
+          </button>
+          <button className="text-btn" type="button" onClick={() => go('/')}>
+            К комнатам
+          </button>
+        </div>
       </form>
     </section>
   )
@@ -1231,7 +1214,7 @@ export function Admin() {
           Ссылка сразу открывает Mini App в этой комнате. Код: <b>{room.code}</b>
         </p>
         {!invite && (
-          <p className="demo-hint">Задай TELEGRAM_BOT_USERNAME на сервере — пока копируется только код.</p>
+          <p className="demo-hint">Задай TELEGRAM_BOT_USERNAME на сервере — пока копируется только код комнаты.</p>
         )}
         <div className="row-actions">
           <button className="fill" type="button" onClick={copyInvite}>
@@ -1492,7 +1475,6 @@ export function Cabinet() {
   const [sharePanel, setSharePanel] = useState(null)
   const [shareFlash, setShareFlash] = useState('')
   const shareRef = useRef(null)
-  const [consent, setConsent] = useState(() => localStorage.getItem('taino-consent') === '1')
   useTitle('профиль')
 
   const displayName = data.user?.firstName || data.user?.username || 'ты'
@@ -1545,10 +1527,6 @@ export function Cabinet() {
 
   async function createList(event) {
     event.preventDefault()
-    if (!consent) {
-      setErr('Нужно согласие с политикой и условиями')
-      return
-    }
     if (!newTitle.trim()) {
       setErr('нужно название')
       return
@@ -1556,7 +1534,6 @@ export function Cabinet() {
     setBusy(true)
     setErr('')
     try {
-      localStorage.setItem('taino-consent', '1')
       const created = await api.createPersonalWishlist({ title: newTitle.trim() })
       setNewTitle('')
       setCreating(false)
@@ -1684,9 +1661,6 @@ export function Cabinet() {
             <button className="text-btn" type="button" onClick={() => go('/')}>
               Мои комнаты
             </button>
-            <button className="text-btn" type="button" onClick={() => go('/legal/privacy')}>
-              Конфиденциальность
-            </button>
           </div>
         </div>
       </div>
@@ -1711,23 +1685,6 @@ export function Cabinet() {
                 placeholder="День рождения, Новый год…"
                 autoFocus
               />
-            </label>
-            <label className="consent">
-              <input
-                type="checkbox"
-                checked={consent}
-                onChange={(e) => setConsent(e.target.checked)}
-              />
-              <span>
-                Согласен с{' '}
-                <button type="button" className="inline-link" onClick={() => go('/legal/privacy')}>
-                  политикой
-                </button>{' '}
-                и{' '}
-                <button type="button" className="inline-link" onClick={() => go('/legal/terms')}>
-                  условиями
-                </button>
-              </span>
             </label>
             <div className="row-actions">
               <button className="fill" type="submit" disabled={busy}>
@@ -1778,12 +1735,12 @@ export function Cabinet() {
                           <span>поделиться · {sharePanel.title}</span>
                         </div>
                         <p className="note">
-                          Лучше слать ссылку Telegram — она откроет Mini App. Ссылка для браузера — только
+                          Лучше отправить ссылку Telegram — она откроет Mini App. Веб-ссылка — только
                           просмотр списка без входа.
                         </p>
                         <p className="share-label">Telegram Mini App</p>
                         <code className="share-url">{sharePanel.telegramUrl}</code>
-                        <div className="row-actions">
+                        <div className="row-actions share-actions">
                           <button
                             className="fill"
                             type="button"
@@ -1795,15 +1752,15 @@ export function Cabinet() {
                             Отправить в Telegram
                           </button>
                         </div>
-                        <p className="share-label">Браузер (просмотр)</p>
+                        <p className="share-label">Браузер · только просмотр</p>
                         <code className="share-url">{sharePanel.webUrl}</code>
-                        <div className="row-actions">
+                        <div className="row-actions share-actions">
                           <button
-                            className="text-btn"
+                            className="fill"
                             type="button"
                             onClick={() => copyShareUrl(sharePanel.webUrl, 'Ссылка для браузера скопирована')}
                           >
-                            Скопировать веб-ссылку
+                            Скопировать
                           </button>
                           <button className="text-btn" type="button" onClick={() => setSharePanel(null)}>
                             Закрыть
@@ -1888,21 +1845,6 @@ export function Cabinet() {
 
       {hint && <p className="demo-hint">{hint}</p>}
       {err && <p className="err">{err}</p>}
-
-      <footer className="legal-foot">
-        <button type="button" className="inline-link" onClick={() => go('/legal/privacy')}>
-          Политика
-        </button>
-        <button type="button" className="inline-link" onClick={() => go('/legal/terms')}>
-          Условия
-        </button>
-        <button type="button" className="inline-link" onClick={() => go('/legal/cookies')}>
-          Cookies
-        </button>
-        <button type="button" className="inline-link" onClick={() => go('/legal/developers')}>
-          Разработчики
-        </button>
-      </footer>
     </section>
   )
 }
@@ -1959,7 +1901,7 @@ export function SharedWishlist({ guest = false }) {
       <h1>{data.title}</h1>
       <p className="note">
         {isGuest
-          ? 'Публичный просмотр без входа. Полный функционал (комнаты, свой вишлист) — только в Telegram Mini App.'
+          ? 'Публичный просмотр без входа. Полный функционал — комнаты и свой вишлист — только в Telegram Mini App.'
           : 'Только просмотр. Свой список создаётся в профиле.'}
       </p>
       {data.items?.length === 0 ? (
