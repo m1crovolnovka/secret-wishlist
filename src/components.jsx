@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useLocation } from 'react-router-dom'
 import { mediaUrl } from './api'
 import { MIN_PEOPLE, THEMES, peopleCount, themeToken } from './data'
@@ -240,6 +241,16 @@ function IconSearch({ active }) {
 
 export function Hint({ text }) {
   const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    if (!open) return undefined
+    const onKey = (event) => {
+      if (event.key === 'Escape') setOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open])
+
   return (
     <span className="hint-wrap">
       <span
@@ -263,26 +274,23 @@ export function Hint({ text }) {
       >
         ?
       </span>
-      {open && (
-        <span
-          className="hint-pop"
-          role="tooltip"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {text}
-          <span
-            className="hint-close"
-            role="button"
-            tabIndex={0}
-            onClick={(e) => {
-              e.stopPropagation()
-              setOpen(false)
-            }}
+      {open &&
+        createPortal(
+          <div
+            className="hint-overlay"
+            role="dialog"
+            aria-modal="true"
+            onClick={() => setOpen(false)}
           >
-            закрыть
-          </span>
-        </span>
-      )}
+            <div className="hint-card" onClick={(e) => e.stopPropagation()}>
+              <p className="hint-card-text">{text}</p>
+              <button className="fill" type="button" onClick={() => setOpen(false)}>
+                Понятно
+              </button>
+            </div>
+          </div>,
+          document.body,
+        )}
     </span>
   )
 }
