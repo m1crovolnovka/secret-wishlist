@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 const STORAGE_KEY = 'taino-onboarding-v2'
 
@@ -96,8 +96,10 @@ export function shouldShowOnboarding() {
 export function Onboarding({ onDone }) {
   const [step, setStep] = useState(0)
   const [dontShow, setDontShow] = useState(false)
+  const touchRef = useRef({ x: 0, y: 0, active: false })
   const current = STEPS[step]
   const last = step === STEPS.length - 1
+  const first = step === 0
 
   useEffect(() => {
     document.body.style.overflow = 'hidden'
@@ -117,15 +119,47 @@ export function Onboarding({ onDone }) {
     onDone?.()
   }
 
+  function goNext() {
+    if (last) finish()
+    else setStep((s) => Math.min(STEPS.length - 1, s + 1))
+  }
+
+  function goPrev() {
+    setStep((s) => Math.max(0, s - 1))
+  }
+
+  function onTouchStart(event) {
+    const t = event.changedTouches?.[0]
+    if (!t) return
+    touchRef.current = { x: t.clientX, y: t.clientY, active: true }
+  }
+
+  function onTouchEnd(event) {
+    if (!touchRef.current.active) return
+    const t = event.changedTouches?.[0]
+    touchRef.current.active = false
+    if (!t) return
+    const dx = t.clientX - touchRef.current.x
+    const dy = t.clientY - touchRef.current.y
+    if (Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy)) return
+    if (dx < 0) goNext()
+    else if (!first) goPrev()
+  }
+
   return (
     <div className="onboard-backdrop" role="dialog" aria-modal="true" aria-labelledby="onboard-title">
-      <div className="onboard-card">
+      <div
+        className="onboard-card"
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+      >
         <StepArt kind={current.art} />
         <p className="crumb">
           шаг {step + 1} из {STEPS.length}
         </p>
         <h2 id="onboard-title">{current.title}</h2>
         <p className="note">{current.text}</p>
+        <p className="onboard-swipe-hint">можно свайпнуть влево или вправо</p>
         <div className="onboard-dots" aria-hidden="true">
           {STEPS.map((_, i) => (
             <span key={i} className={i === step ? 'on' : ''} />
@@ -136,12 +170,17 @@ export function Onboarding({ onDone }) {
           <span>больше не показывать</span>
         </label>
         <div className="row-actions onboard-actions">
+          {!first && (
+            <button className="text-btn" type="button" onClick={goPrev}>
+              Назад
+            </button>
+          )}
           {last ? (
             <button className="fill" type="button" onClick={finish}>
               Понятно
             </button>
           ) : (
-            <button className="fill" type="button" onClick={() => setStep((s) => s + 1)}>
+            <button className="fill" type="button" onClick={goNext}>
               Дальше
             </button>
           )}

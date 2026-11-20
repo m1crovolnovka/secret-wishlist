@@ -900,9 +900,10 @@ export function Rooms() {
       <section className="page-intro">
         <div className="blob blob-a" />
         <p className="crumb">раздачи</p>
-        <h1>
-          Мои комнаты <Hint text="Участник — комнаты, куда ты вошёл. Админ — те, что ты создал и ведёшь." />
-        </h1>
+        <div className="title-row">
+          <h1>Мои комнаты</h1>
+          <Hint text="Участник — комнаты, куда ты вошёл. Админ — те, что ты создал и ведёшь." />
+        </div>
         <div className="role-tabs" role="tablist" aria-label="тип комнат">
           <button
             type="button"
@@ -1071,9 +1072,10 @@ export function Find() {
       <section className="page-intro">
         <div className="blob blob-a" />
         <p className="crumb">поиск</p>
-        <h1>
-          Найти комнату <Hint text="Публичные комнаты видны всем. Приватные — только по коду из приглашения." />
-        </h1>
+        <div className="title-row">
+          <h1>Найти комнату</h1>
+          <Hint text="Публичные комнаты видны всем. Приватные — только по коду из приглашения." />
+        </div>
       </section>
 
       <section className="sheet enter find-sheet">
@@ -1231,17 +1233,13 @@ export function NewRoom() {
         </div>
         <div className="presence">
           {PRESENCE.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={presence === item.id ? 'on' : ''}
-              onClick={() => setPresence(item.id)}
-            >
-              <strong>
-                {item.title} <Hint text={item.tip} />
-              </strong>
-              <span>{item.note}</span>
-            </button>
+            <div key={item.id} className={presence === item.id ? 'presence-row on' : 'presence-row'}>
+              <button type="button" className="presence-pick" onClick={() => setPresence(item.id)}>
+                <strong>{item.title}</strong>
+                <span>{item.note}</span>
+              </button>
+              <Hint text={item.tip} />
+            </div>
           ))}
         </div>
         <div className="label space">
@@ -1450,23 +1448,27 @@ export function Admin() {
           </div>
           <div className="presence">
             {PRESENCE.map((item) => (
-              <button
+              <div
                 key={item.id}
-                type="button"
-                className={room.presence === item.id ? 'on' : ''}
-                onClick={() => updateRoom({ presence: item.id })}
+                className={room.presence === item.id ? 'presence-row on' : 'presence-row'}
               >
-                <strong>
-                  {item.title} <Hint text={item.tip} />
-                </strong>
-                <span>{item.note}</span>
-              </button>
+                <button
+                  type="button"
+                  className="presence-pick"
+                  onClick={() => updateRoom({ presence: item.id })}
+                >
+                  <strong>{item.title}</strong>
+                  <span>{item.note}</span>
+                </button>
+                <Hint text={item.tip} />
+              </div>
             ))}
           </div>
           <div className="admin-preview">
-            <h3>
-              Как увидят участники <Hint text="Краткий превью экрана участника после твоих настроек." />
-            </h3>
+            <div className="title-row">
+              <h3>Как увидят участники</h3>
+              <Hint text="Краткий превью экрана участника после твоих настроек." />
+            </div>
             <p className="note">
               {guest
                 ? 'Участники видят обычную комнату. Ты в раздаче, но без доступа к чужим вишлистам и вкладке «Люди».'
@@ -1730,9 +1732,8 @@ export function Cabinet() {
       <div className="cab-block">
         <div className="label">
           <Squiggle />
-          <span>
-            мои вишлисты <Hint text="Списки свёрнуты. Плюс раскрывает до трёх позиций. Полный список — «Открыть вишлист»." />
-          </span>
+          <span>мои вишлисты</span>
+          <Hint text="Списки свёрнуты. Плюс раскрывает до трёх позиций. Полный список — «Открыть вишлист»." />
         </div>
         {!creating ? (
           <button className="fill" type="button" onClick={() => setCreating(true)}>
