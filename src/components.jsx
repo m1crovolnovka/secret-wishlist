@@ -216,28 +216,74 @@ function IconProfile({ active }) {
   )
 }
 
-function IconPeople({ active }) {
+function IconPlus({ active }) {
   return (
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <circle cx="9" cy="8" r="2.6" stroke="currentColor" strokeWidth={active ? 2 : 1.5} />
-      <circle cx="16.2" cy="9" r="2.1" stroke="currentColor" strokeWidth={active ? 2 : 1.5} />
-      <path d="M3.8 18.5c.6-2.8 2.7-4.3 5.2-4.3s4.6 1.5 5.2 4.3" stroke="currentColor" strokeWidth={active ? 2 : 1.5} strokeLinecap="round" />
-      <path d="M13.2 14.6c1.1-.5 2.3-.7 3.5-.5 1.8.3 3.2 1.5 3.7 3.4" stroke="currentColor" strokeWidth={active ? 2 : 1.5} strokeLinecap="round" />
+      <path
+        d="M12 5v14M5 12h14"
+        stroke="currentColor"
+        strokeWidth={active ? 2.2 : 1.7}
+        strokeLinecap="round"
+      />
     </svg>
   )
 }
 
-function IconGear({ active }) {
+function IconSearch({ active }) {
   return (
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth={active ? 2 : 1.5} />
-      <path
-        d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M5.6 5.6l1.6 1.6M16.8 16.8l1.6 1.6M18.4 5.6l-1.6 1.6M7.2 16.8l-1.6 1.6"
-        stroke="currentColor"
-        strokeWidth={active ? 2 : 1.5}
-        strokeLinecap="round"
-      />
+      <circle cx="11" cy="11" r="6.2" stroke="currentColor" strokeWidth={active ? 2 : 1.5} />
+      <path d="M16.2 16.2 20 20" stroke="currentColor" strokeWidth={active ? 2 : 1.5} strokeLinecap="round" />
     </svg>
+  )
+}
+
+export function Hint({ text }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <span className="hint-wrap">
+      <span
+        className="hint-btn"
+        role="button"
+        tabIndex={0}
+        aria-label="подсказка"
+        aria-expanded={open}
+        onClick={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          setOpen((v) => !v)
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            e.stopPropagation()
+            setOpen((v) => !v)
+          }
+        }}
+      >
+        ?
+      </span>
+      {open && (
+        <span
+          className="hint-pop"
+          role="tooltip"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {text}
+          <span
+            className="hint-close"
+            role="button"
+            tabIndex={0}
+            onClick={(e) => {
+              e.stopPropagation()
+              setOpen(false)
+            }}
+          >
+            закрыть
+          </span>
+        </span>
+      )}
+    </span>
   )
 }
 
@@ -276,16 +322,42 @@ export function Header() {
 
   const path = location.pathname
   const tabs = [
-    { id: 'rooms', to: '/', label: 'Комнаты', icon: IconHome, match: path === '/' },
+    {
+      id: 'rooms',
+      to: '/',
+      label: 'Мои комнаты',
+      icon: IconHome,
+      match: path === '/',
+    },
     room
-      ? { id: 'room', to: '/room', label: 'Комната', icon: IconDoor, match: path === '/room' }
+      ? {
+          id: 'room',
+          to: '/room',
+          label: 'Комната',
+          icon: IconDoor,
+          match: path === '/room' || path === '/admin' || path === '/colors',
+        }
       : null,
     {
+      id: 'create',
+      to: '/rooms/new',
+      label: 'Создать',
+      icon: IconPlus,
+      match: path === '/rooms/new',
+    },
+    {
+      id: 'find',
+      to: '/find',
+      label: 'Найти',
+      icon: IconSearch,
+      match: path === '/find' || path === '/enter',
+    },
+    {
       id: 'profile',
-      to: user ? '/cabinet' : '/enter',
+      to: user ? '/cabinet' : '/find',
       label: 'Профиль',
       icon: IconProfile,
-      match: path === '/cabinet' || path === '/enter' || path.startsWith('/shared'),
+      match: path === '/cabinet' || path.startsWith('/cabinet/') || path.startsWith('/shared'),
     },
   ].filter(Boolean)
 
@@ -312,13 +384,19 @@ export function Header() {
           <div className="blob blob-menu" />
           <div className="menu-links">
             <button type="button" className="menu-link" onClick={() => travel('/')}>
-              Комнаты
+              Мои комнаты
             </button>
             {room && (
               <button type="button" className="menu-link" onClick={() => travel('/room')}>
                 Комната
               </button>
             )}
+            <button type="button" className="menu-link" onClick={() => travel('/rooms/new')}>
+              Создать комнату
+            </button>
+            <button type="button" className="menu-link" onClick={() => travel('/find')}>
+              Найти
+            </button>
             <button type="button" className="menu-link" onClick={onAccount}>
               Профиль
             </button>
@@ -464,7 +542,7 @@ export function Mosaic() {
   )
 }
 
-export function Collection({ wl, kicker, side, particle = 'snow' }) {
+export function Collection({ wl, kicker, side, particle = 'snow', onClaim, onUnclaim, claimBusyId }) {
   return (
     <article className="field" style={{ background: wl.base || '#5c2d55', color: wl.ink || '#f8f0f4' }}>
       <Weather type={particle} color={wl.ink || '#f8f0f4'} />
@@ -491,19 +569,47 @@ export function Collection({ wl, kicker, side, particle = 'snow' }) {
       </div>
       {wl.gifts?.length ? (
         <ol className="gift-grid">
-          {wl.gifts.map((gift) => (
-            <li className="gift" key={gift.id}>
-              <div className="frame">
-                <Photo src={gift.photo} alt={gift.title} />
-              </div>
-              <h3>{gift.title}</h3>
-              {gift.url ? (
-                <a className="buy" href={gift.url} target="_blank" rel="noreferrer">
-                  к покупке
-                </a>
-              ) : null}
-            </li>
-          ))}
+          {wl.gifts.map((gift) => {
+            const claimedOther = Boolean(gift.claimedByOther)
+            const claimedMe = Boolean(gift.claimedByMe)
+            const claimable = Boolean(gift.claimable && onClaim)
+            return (
+              <li
+                className={
+                  claimedOther ? 'gift claimed-other' : claimedMe ? 'gift claimed-me' : 'gift'
+                }
+                key={gift.id}
+              >
+                <div className="frame">
+                  <Photo src={gift.photo} alt={gift.title} />
+                </div>
+                <h3>{gift.title}</h3>
+                {claimedOther && <p className="claim-badge">уже отмечено другим дарителем</p>}
+                {claimedMe && <p className="claim-badge me">твоя отметка: подарю</p>}
+                <div className="gift-actions">
+                  {gift.url ? (
+                    <a className="buy" href={gift.url} target="_blank" rel="noreferrer">
+                      к покупке
+                    </a>
+                  ) : null}
+                  {claimable && !claimedOther && (
+                    <button
+                      className="text-btn claim-btn"
+                      type="button"
+                      disabled={claimBusyId === gift.id}
+                      onClick={() => (claimedMe ? onUnclaim?.(gift.id) : onClaim?.(gift.id))}
+                    >
+                      {claimBusyId === gift.id
+                        ? '…'
+                        : claimedMe
+                          ? 'снять отметку'
+                          : 'подарю'}
+                    </button>
+                  )}
+                </div>
+              </li>
+            )
+          })}
         </ol>
       ) : (
         <p className="note empty-note">В этом списке пока пусто.</p>

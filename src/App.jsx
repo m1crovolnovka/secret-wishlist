@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import { Header, Pour, ScrollReset } from './components'
 import {
@@ -10,16 +10,19 @@ import {
   Privacy,
   Terms,
 } from './legal'
+import { Onboarding, shouldShowOnboarding } from './Onboarding'
 import {
   Admin,
   Cabinet,
   Colors,
   Enter,
+  Find,
   NewRoom,
   RoomLobby,
   Rooms,
   Rules,
   SharedWishlist,
+  WishlistNotebook,
 } from './pages'
 import { useStore } from './store'
 import { showBackButton } from './telegram'
@@ -27,6 +30,7 @@ import { showBackButton } from './telegram'
 export default function App() {
   const { theme, boot } = useStore()
   const navigate = useNavigate()
+  const [showOnboard, setShowOnboard] = useState(false)
 
   useEffect(() => {
     const root = document.documentElement
@@ -41,6 +45,12 @@ export default function App() {
   useEffect(() => {
     return showBackButton(() => navigate(-1))
   }, [navigate])
+
+  useEffect(() => {
+    if (!boot.loading && !boot.error && !boot.guest && shouldShowOnboarding()) {
+      setShowOnboard(true)
+    }
+  }, [boot.loading, boot.error, boot.guest])
 
   if (boot.loading) {
     return (
@@ -106,8 +116,10 @@ export default function App() {
           <Route path="/colors" element={<Colors />} />
           <Route path="/rooms" element={<Navigate to="/" replace />} />
           <Route path="/rooms/new" element={<NewRoom />} />
+          <Route path="/find" element={<Find />} />
           <Route path="/admin" element={<Admin />} />
           <Route path="/cabinet" element={<Cabinet />} />
+          <Route path="/cabinet/wishlists/:id" element={<WishlistNotebook />} />
           <Route path="/shared/:token" element={<SharedWishlist />} />
           <Route path="/enter" element={<Enter />} />
           <Route path="/legal" element={<LegalIndex />} />
@@ -121,6 +133,7 @@ export default function App() {
         </Routes>
       </main>
       <Pour />
+      {showOnboard && <Onboarding onDone={() => setShowOnboard(false)} />}
     </>
   )
 }
