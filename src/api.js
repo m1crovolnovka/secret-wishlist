@@ -88,11 +88,17 @@ export const api = {
   deletePersonalWishlist: (id) => request(`/api/me/wishlists/${id}`, { method: 'DELETE' }),
   addPersonalWishlistItem: (id, body) =>
     request(`/api/me/wishlists/${id}/items`, { method: 'POST', body: JSON.stringify(body) }),
+  updatePersonalWishlistItem: (id, itemId, body) =>
+    request(`/api/me/wishlists/${id}/items/${itemId}`, { method: 'PUT', body: JSON.stringify(body) }),
   removePersonalWishlistItem: (id, itemId) =>
     request(`/api/me/wishlists/${id}/items/${itemId}`, { method: 'DELETE' }),
   attachPersonalWishlist: (id, roomId) =>
     request(`/api/me/wishlists/${id}/attach`, { method: 'POST', body: JSON.stringify({ roomId }) }),
   sharedWishlist: (token) => request(`/api/wishlists/shared/${token}`),
+  claimAssignmentItem: (roomId, itemId) =>
+    request(`/api/rooms/${roomId}/assignment/claims/${itemId}`, { method: 'POST' }),
+  unclaimAssignmentItem: (roomId, itemId) =>
+    request(`/api/rooms/${roomId}/assignment/claims/${itemId}`, { method: 'DELETE' }),
   uploadImage: async (roomId, file) => {
     const fd = new FormData()
     fd.append('file', file)

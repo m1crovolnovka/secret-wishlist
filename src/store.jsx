@@ -237,7 +237,14 @@ export function StoreProvider({ children }) {
         const start = getStartParam()
         if (start.startsWith('room_')) {
           try {
-            await api.joinRoom(start.slice(5))
+            const joined = await api.joinRoom(start.slice(5))
+            if (joined?.room?.id) {
+              try {
+                localStorage.setItem('taino-room-id', String(joined.room.id))
+              } catch {
+                /* ignore */
+              }
+            }
           } catch {
             // ignore invalid code
           }
@@ -357,6 +364,7 @@ export function StoreProvider({ children }) {
       haptic('success')
       await loadRooms(detail.room.id)
       navigate('/room')
+      return detail
     },
     [loadRooms, navigate],
   )
@@ -367,6 +375,7 @@ export function StoreProvider({ children }) {
       haptic('success')
       await loadRooms(detail.room.id)
       navigate('/room')
+      return detail
     },
     [loadRooms, navigate],
   )
@@ -399,6 +408,16 @@ export function StoreProvider({ children }) {
       if (!room?.numericId) return
       const next = await api.updateForm(room.numericId, { note })
       setForm(next)
+    },
+    [room],
+  )
+
+  const patchForm = useCallback(
+    async (patch) => {
+      if (!room?.numericId) return null
+      const next = await api.updateForm(room.numericId, patch)
+      setForm(next)
+      return next
     },
     [room],
   )
@@ -621,11 +640,14 @@ export function StoreProvider({ children }) {
       contactLink: assignment.contactLink || '',
       secrecyMode: assignment.secrecyMode || room?.secrecyMode || 'SECRET',
       gifts: (assignment.wishlist || []).map((item, index) => ({
-        id: `${index}-${item.title}`,
+        id: item.id ?? `${index}-${item.title}`,
         title: item.title,
         url: item.url || '',
         photo: item.imageUrl || '',
         imageId: item.imageId || null,
+        claimable: Boolean(item.claimable),
+        claimedByMe: Boolean(item.claimedByMe),
+        claimedByOther: Boolean(item.claimedByOther),
       })),
       budgetMin: assignment.budgetMin,
       budgetMax: assignment.budgetMax,
@@ -634,6 +656,26 @@ export function StoreProvider({ children }) {
       deliveryPlace: assignment.deliveryPlace,
     }
   }, [assignment, room?.theme, room?.secrecyMode])
+
+  const claimGift = useCallback(
+    async (itemId) => {
+      if (!room?.numericId || itemId == null) return
+      await api.claimAssignmentItem(room.numericId, itemId)
+      const assignRes = await api.assignment(room.numericId).catch(() => null)
+      setAssignment(assignRes)
+    },
+    [room?.numericId],
+  )
+
+  const unclaimGift = useCallback(
+    async (itemId) => {
+      if (!room?.numericId || itemId == null) return
+      await api.unclaimAssignmentItem(room.numericId, itemId)
+      const assignRes = await api.assignment(room.numericId).catch(() => null)
+      setAssignment(assignRes)
+    },
+    [room?.numericId],
+  )
 
   const isRevealed = Boolean(assignmentView)
   const isAdmin = Boolean(room?.hasAdminTab)
@@ -672,8 +714,11 @@ export function StoreProvider({ children }) {
       archivedRooms,
       copyWishlistFrom,
       setNote,
+      patchForm,
       addGift,
       removeGift,
+      claimGift,
+      unclaimGift,
       patchPerson: () => {},
       addPersonGift: () => {},
       removePersonGift: () => {},
@@ -721,8 +766,11 @@ export function StoreProvider({ children }) {
       archivedRooms,
       copyWishlistFrom,
       setNote,
+      patchForm,
       addGift,
       removeGift,
+      claimGift,
+      unclaimGift,
       updateRoom,
       createRoom,
       joinByCode,
