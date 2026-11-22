@@ -272,7 +272,17 @@ export function Hint({ text }) {
           }
         }}
       >
-        ?
+        <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+          <circle cx="6" cy="6" r="5.25" fill="none" />
+          <path
+            d="M4.35 4.4c.15-.9.9-1.55 1.85-1.55 1.05 0 1.85.7 1.85 1.65 0 .7-.35 1.15-1.05 1.55-.55.3-.8.55-.8 1.15v.35"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.35"
+            strokeLinecap="round"
+          />
+          <circle cx="6" cy="9.15" r="0.7" fill="currentColor" />
+        </svg>
       </span>
       {open &&
         createPortal(
