@@ -6,6 +6,9 @@
   --blob: #d5e4ef;
   --blob-2: #f6c4cf;
   --line: rgba(26, 40, 50, 0.16);
+  /* Fixed app chrome under Telegram header */
+  --topbar-h: 58px;
+  --page-top: calc(var(--topbar-h) + env(safe-area-inset-top, 0px) + 20px);
   color-scheme: light;
 }
 
@@ -68,11 +71,13 @@ main {
   top: 0;
   left: 0;
   right: 0;
+  height: calc(var(--topbar-h) + env(safe-area-inset-top, 0px));
+  box-sizing: border-box;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
-  padding: calc(10px + env(safe-area-inset-top)) 14px 12px;
+  padding: env(safe-area-inset-top, 0px) 14px 0;
   background: var(--paper);
   border-bottom: 1px solid color-mix(in srgb, var(--ink) 8%, transparent);
   pointer-events: none;
@@ -333,7 +338,7 @@ main {
 
 .hero {
   min-height: 0;
-  padding: calc(72px + env(safe-area-inset-top)) 20px 28px;
+  padding: var(--page-top) 20px 28px;
   display: grid;
   grid-template-columns: 1fr;
   gap: 18px;
@@ -343,14 +348,14 @@ main {
 
 .page-intro {
   min-height: 0;
-  padding: calc(72px + env(safe-area-inset-top)) 20px 20px;
+  padding: var(--page-top) 20px 20px;
   overflow: visible;
 }
 
 .sheet {
   position: relative;
   min-height: 0;
-  padding: calc(72px + env(safe-area-inset-top)) 20px calc(28px + env(safe-area-inset-bottom));
+  padding: var(--page-top) 20px calc(28px + env(safe-area-inset-bottom));
   overflow: visible;
 }
 
@@ -892,7 +897,7 @@ h1, h2, .menu-link, .theme-copy strong { font-weight: 500; }
 .field {
   position: relative;
   min-height: 0;
-  padding: calc(72px + env(safe-area-inset-top)) 20px calc(28px + env(safe-area-inset-bottom));
+  padding: var(--page-top) 20px calc(28px + env(safe-area-inset-bottom));
   overflow: visible;
 }
 
@@ -1102,6 +1107,24 @@ h1, h2, .menu-link, .theme-copy strong { font-weight: 500; }
   z-index: 2;
   margin: 0 0 28px;
   min-width: 0;
+}
+
+.personal-pick {
+  margin: 8px 0 16px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.personal-pick .row-actions {
+  margin-top: 8px;
+  width: 100%;
+}
+
+.personal-pick select {
+  flex: 1 1 160px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .copy-wish select {
@@ -1725,7 +1748,7 @@ h1, h2, .menu-link, .theme-copy strong { font-weight: 500; }
   .page-intro,
   .sheet,
   .field {
-    padding-top: calc(68px + env(safe-area-inset-top));
+    padding-top: var(--page-top);
   }
 
   .hero {
@@ -1867,7 +1890,6 @@ body {
 }
 
 .cab-spaced {
-  padding-top: 0;
   display: flex;
   flex-direction: column;
   gap: 18px;
@@ -2198,13 +2220,16 @@ body {
 .find-sheet {
   margin-bottom: 8px;
   min-height: 0;
-  padding-top: 0;
+  /* page-intro already clears the topbar; keep this block tight */
+  padding-top: 8px;
   padding-bottom: 8px;
 }
 
 .hint-wrap {
   position: relative;
   display: inline-flex;
+  align-items: center;
+  justify-content: center;
   vertical-align: middle;
   margin-left: 6px;
   flex-shrink: 0;
@@ -2212,28 +2237,27 @@ body {
 
 .hint-btn {
   box-sizing: border-box;
-  display: inline-grid;
-  place-items: center;
-  width: 24px;
-  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
-  border: 1px solid color-mix(in srgb, currentColor 35%, transparent);
-  background: color-mix(in srgb, var(--paper) 90%, white);
+  border: 1.5px solid color-mix(in srgb, currentColor 45%, transparent);
+  background: #fff;
   color: inherit;
-  font-size: 0;
-  line-height: 0;
-  padding: 0;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0;
+  text-align: center;
+  padding: 0 0 1px;
   margin: 0;
-  opacity: 0.9;
+  opacity: 1;
   cursor: pointer;
   vertical-align: middle;
   flex-shrink: 0;
-}
-
-.hint-btn svg {
-  display: block;
-  width: 12px;
-  height: 12px;
 }
 
 .hint-overlay {
