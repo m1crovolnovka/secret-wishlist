@@ -104,6 +104,7 @@ export function RoomLobby() {
     claimGift,
     unclaimGift,
     patchForm,
+    attachPersonalWishlist,
     actionError,
     saveError,
   } = useStore()
@@ -121,11 +122,32 @@ export function RoomLobby() {
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
   const [claimBusyId, setClaimBusyId] = useState(null)
+  const [personalLists, setPersonalLists] = useState([])
+  const [pickListId, setPickListId] = useState('')
+  const [attachHint, setAttachHint] = useState('')
   useTitle(isRevealed ? 'тебе выпало' : room?.title || 'комната')
 
   useEffect(() => {
     setWishOpen(false)
+    setPickListId('')
+    setAttachHint('')
   }, [room?.id])
+
+  useEffect(() => {
+    if (!wishOpen) return undefined
+    let cancelled = false
+    ;(async () => {
+      try {
+        const list = await api.personalWishlists()
+        if (!cancelled) setPersonalLists(list || [])
+      } catch {
+        if (!cancelled) setPersonalLists([])
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [wishOpen])
 
   useEffect(() => {
     setWbPickup(form?.wbPickup || '')
@@ -380,6 +402,62 @@ export function RoomLobby() {
                       maxLength={80}
                     />
                   </label>
+                  {room.canEdit && (
+                    <div className="copy-wish personal-pick">
+                      <div className="label">
+                        <Squiggle />
+                        <span>из моих вишлистов</span>
+                      </div>
+                      <p className="note">Выбери готовый список — позиции добавятся в вишлист этой комнаты.</p>
+                      <div className="row-actions form-actions">
+                        <select
+                          value={pickListId}
+                          onChange={(e) => setPickListId(e.target.value)}
+                          disabled={busy || personalLists.length === 0}
+                          aria-label="личный вишлист"
+                        >
+                          <option value="">
+                            {personalLists.length === 0 ? 'пока нет личных списков' : 'выбери список…'}
+                          </option>
+                          {personalLists.map((item) => (
+                            <option key={item.id} value={item.id}>
+                              {item.title} · {item.itemCount || 0} жел.
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          className="fill"
+                          type="button"
+                          disabled={busy || !pickListId}
+                          onClick={async () => {
+                            if (!pickListId) return
+                            setBusy(true)
+                            setErr('')
+                            setAttachHint('')
+                            try {
+                              const res = await attachPersonalWishlist(pickListId)
+                              setAttachHint(
+                                `Добавлено: ${res.copied || 0}` +
+                                  (res.skipped ? `, пропущено ${res.skipped}` : ''),
+                              )
+                            } catch (e) {
+                              setErr(e.message || 'не удалось добавить список')
+                            } finally {
+                              setBusy(false)
+                            }
+                          }}
+                        >
+                          {busy ? 'Добавляю…' : 'Добавить в комнату'}
+                        </button>
+                      </div>
+                      {attachHint && <p className="demo-hint">{attachHint}</p>}
+                      {personalLists.length === 0 && (
+                        <button className="text-btn" type="button" onClick={() => go('/cabinet')}>
+                          Создать вишлист в профиле
+                        </button>
+                      )}
+                    </div>
+                  )}
                   {room.secrecyMode === 'OPEN' && (
                     <>
                       <label className="line">
@@ -1173,7 +1251,6 @@ export function NewRoom() {
   const [giftBy, setGiftBy] = useState(() => toInput(Date.now() + 24 * 86400000))
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
-  const look = themeOf(theme)
   const cash = currencyOf(currency)
   useTitle('новая комната')
 
@@ -1215,7 +1292,6 @@ export function NewRoom() {
 
   return (
     <section className="sheet">
-      <Weather type={look.particle} color={look.ink} />
       <div className="blob blob-a" />
       <div className="enter-copy">
         <p className="crumb">ты создаёшь комнату</p>

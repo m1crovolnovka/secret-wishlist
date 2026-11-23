@@ -533,6 +533,18 @@ export function StoreProvider({ children }) {
     [room],
   )
 
+  const attachPersonalWishlist = useCallback(
+    async (wishlistId) => {
+      if (!room?.numericId || !wishlistId) return { copied: 0, skipped: 0 }
+      const result = await api.attachPersonalWishlist(wishlistId, room.numericId)
+      const wish = await api.wishlist(room.numericId)
+      setWishlist(wish)
+      haptic('success')
+      return result
+    },
+    [room],
+  )
+
   const decideChange = useCallback(
     async (requestId, approve, adminNote) => {
       if (!room?.numericId) return
@@ -713,6 +725,7 @@ export function StoreProvider({ children }) {
       deleteRoom,
       archivedRooms,
       copyWishlistFrom,
+      attachPersonalWishlist,
       setNote,
       patchForm,
       addGift,
@@ -765,6 +778,7 @@ export function StoreProvider({ children }) {
       deleteRoom,
       archivedRooms,
       copyWishlistFrom,
+      attachPersonalWishlist,
       setNote,
       patchForm,
       addGift,
