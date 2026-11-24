@@ -34,12 +34,40 @@ import { useGo, useStore } from './store'
 import { haptic } from './telegram'
 
 function RuDateTimeInput({ value, onChange }) {
+  const inputRef = useRef(null)
   const ts = value ? fromInput(value) || (typeof value === 'number' ? value : null) : null
   const local = typeof value === 'string' ? value : value ? toInput(value) : ''
+
+  function openPicker(event) {
+    event.preventDefault()
+    const el = inputRef.current
+    if (!el) return
+    try {
+      if (typeof el.showPicker === 'function') {
+        el.showPicker()
+        return
+      }
+    } catch {
+      /* fall through */
+    }
+    el.focus()
+    el.click()
+  }
+
   return (
     <div className="ru-dt">
-      <span className="ru-dt-value">{ts ? formatWhen(ts) : 'выбери дату и время'}</span>
-      <input type="datetime-local" lang="ru" value={local} onChange={onChange} />
+      <button type="button" className="ru-dt-value" onClick={openPicker}>
+        {ts ? formatWhen(ts) : 'выбери дату и время'}
+      </button>
+      <input
+        ref={inputRef}
+        type="datetime-local"
+        lang="ru"
+        value={local}
+        onChange={onChange}
+        tabIndex={-1}
+        aria-hidden="true"
+      />
     </div>
   )
 }
@@ -100,7 +128,6 @@ export function RoomLobby() {
     leaveRoom,
     addGift,
     removeGift,
-    setNote,
     claimGift,
     unclaimGift,
     patchForm,
@@ -119,18 +146,21 @@ export function RoomLobby() {
   const [wbPickup, setWbPickup] = useState('')
   const [contactLink, setContactLink] = useState('')
   const [displayName, setDisplayName] = useState('')
+  const [noteDraft, setNoteDraft] = useState('')
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
   const [claimBusyId, setClaimBusyId] = useState(null)
   const [personalLists, setPersonalLists] = useState([])
   const [pickListId, setPickListId] = useState('')
   const [attachHint, setAttachHint] = useState('')
+  const attachLock = useRef(false)
   useTitle(isRevealed ? 'тебе выпало' : room?.title || 'комната')
 
   useEffect(() => {
     setWishOpen(false)
     setPickListId('')
     setAttachHint('')
+    attachLock.current = false
   }, [room?.id])
 
   useEffect(() => {
@@ -156,6 +186,10 @@ export function RoomLobby() {
   }, [form?.wbPickup, form?.telegramLink, form?.displayName, room?.id])
 
   useEffect(() => {
+    setNoteDraft(form?.note || '')
+  }, [room?.id, form?.id])
+
+  useEffect(() => {
     if (!room?.numericId || !room.canEdit) return undefined
     const timer = setTimeout(async () => {
       const patch = {}
@@ -164,6 +198,7 @@ export function RoomLobby() {
       if (displayName.trim() && displayName !== (form?.displayName || '')) {
         patch.displayName = displayName.trim()
       }
+      if (noteDraft !== (form?.note || '')) patch.note = noteDraft
       if (Object.keys(patch).length === 0) return
       try {
         await patchForm(patch)
@@ -176,11 +211,13 @@ export function RoomLobby() {
     wbPickup,
     contactLink,
     displayName,
+    noteDraft,
     room?.numericId,
     room?.canEdit,
     form?.wbPickup,
     form?.telegramLink,
     form?.displayName,
+    form?.note,
     patchForm,
   ])
 
@@ -430,7 +467,8 @@ export function RoomLobby() {
                           type="button"
                           disabled={busy || !pickListId}
                           onClick={async () => {
-                            if (!pickListId) return
+                            if (!pickListId || attachLock.current) return
+                            attachLock.current = true
                             setBusy(true)
                             setErr('')
                             setAttachHint('')
@@ -443,6 +481,7 @@ export function RoomLobby() {
                             } catch (e) {
                               setErr(e.message || 'не удалось добавить список')
                             } finally {
+                              attachLock.current = false
                               setBusy(false)
                             }
                           }}
@@ -464,11 +503,16 @@ export function RoomLobby() {
                         <span>заметка дарителю</span>
                         <textarea
                           rows={2}
-                          value={form?.note || ''}
-                          onChange={(e) => setNote(e.target.value)}
+                          value={noteDraft}
+                          onChange={(e) => setNoteDraft(e.target.value)}
                           disabled={!room.canEdit}
+                          placeholder="размер, адрес, пожелания…"
                         />
                       </label>
+                      <p className="demo-hint note-preview-hint">
+                        Не привязана к позиции: после раздачи даритель увидит её над твоим списком.
+                        {noteDraft.trim() ? ` Сейчас: «${noteDraft.trim()}»` : ''}
+                      </p>
                       <label className="line">
                         <span>пункт выдачи WB</span>
                         <input
@@ -544,7 +588,7 @@ export function RoomLobby() {
                                 к покупке
                               </a>
                             ) : (
-                              <span className="demo-hint">без ссылки</span>
+                              <span className="meta-plain">без ссылки</span>
                             )}
                             <button className="text-btn" type="button" onClick={() => removeGift(gift.id)}>
                               убрать
@@ -554,6 +598,11 @@ export function RoomLobby() {
                       </li>
                     ))}
                   </ul>
+                )}
+                {room.secrecyMode === 'OPEN' && noteDraft.trim() && (
+                  <p className="note wish-note-preview">
+                    <b>Заметка дарителю:</b> {noteDraft.trim()}
+                  </p>
                 )}
               </div>
             </div>
@@ -937,10 +986,16 @@ function RoomCard({ item, room, now, onOpen, onSettings }) {
 }
 
 export function Rooms() {
-  const { rooms, archivedRooms, room, focusRoom, now, deleteRoom, actionError } = useStore()
+  const { rooms, archivedRooms, room, focusRoom, now, deleteRoom, actionError, reload } = useStore()
   const [roleTab, setRoleTab] = useState('member')
   const [deletingId, setDeletingId] = useState(null)
   useTitle('мои комнаты')
+
+  useEffect(() => {
+    reload?.()
+    // only refresh counts when opening the list
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const memberRooms = [...rooms]
     .filter((r) => r.myRole !== 'OWNER')
@@ -1294,7 +1349,7 @@ export function NewRoom() {
     <section className="sheet">
       <div className="blob blob-a" />
       <div className="enter-copy">
-        <p className="crumb">ты создаёшь комнату</p>
+        <p className="crumb">Создание комнаты</p>
         <h1>Новая</h1>
         <p className="note">Срок, сумма и твоя роль в этой комнате. Минимум участников для раздачи — {MIN_PEOPLE}.</p>
       </div>
@@ -1385,14 +1440,14 @@ export function NewRoom() {
           />
         </label>
         <p className="demo-hint">{money(budget, currency) || 'сумма не задана'}</p>
-        <label className="line">
+        <div className="line">
           <span>раздача</span>
           <RuDateTimeInput value={drawAt} onChange={(event) => setDrawAt(event.target.value)} />
-        </label>
-        <label className="line">
+        </div>
+        <div className="line">
           <span>подарить до</span>
           <RuDateTimeInput value={giftBy} onChange={(event) => setGiftBy(event.target.value)} />
-        </label>
+        </div>
         {err && <p className="err">{err}</p>}
         <div className="row-actions form-actions">
           <button className="fill" type="submit" disabled={busy}>
@@ -1630,7 +1685,7 @@ export function Admin() {
               }}
             />
           </label>
-          <label className="line">
+          <div className="line">
             <span>раздача</span>
             <RuDateTimeInput
               value={toInput(room.drawAt)}
@@ -1639,9 +1694,9 @@ export function Admin() {
                 if (ts) updateRoom({ drawAt: ts })
               }}
             />
-          </label>
+          </div>
           <p className="demo-hint">Если сдвинуть вперёд, выпавший список снова закроется.</p>
-          <label className="line">
+          <div className="line">
             <span>подарить до</span>
             <RuDateTimeInput
               value={toInput(room.giftBy)}
@@ -1650,7 +1705,7 @@ export function Admin() {
                 if (ts) updateRoom({ giftBy: ts })
               }}
             />
-          </label>
+          </div>
           <div className="label space">
             <Squiggle />
             <span>сумма подарка</span>
@@ -2149,6 +2204,7 @@ export function WishlistNotebook() {
             type="button"
             disabled={busy}
             onClick={async () => {
+              if (busy) return
               setBusy(true)
               setAttachHint('')
               setErr('')
@@ -2156,7 +2212,7 @@ export function WishlistNotebook() {
                 const res = await api.attachPersonalWishlist(id, room.numericId)
                 setAttachHint(
                   `В комнату «${room.title}» добавлено: ${res.copied || 0}` +
-                    (res.skipped ? `, пропущено ${res.skipped}` : ''),
+                    (res.skipped ? `, уже было ${res.skipped}` : ''),
                 )
                 haptic('success')
               } catch (e) {

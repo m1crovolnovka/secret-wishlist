@@ -6,7 +6,7 @@ const STEPS = [
   {
     title: 'Что такое Тайно',
     text:
-      'Это мини-приложение для тайной раздачи подарков. Друзья собираются в комнате, каждый пишет, что хочет получить. После жеребьёвки тебе выпадает чужой вишлист — без имени, только цвет. Ты даришь, и никто не знает, кто кому.',
+      'Это мини-приложение для тайной раздачи подарков. Друзья собираются в комнате, каждый пишет, что хочет получить. После жеребьёвки тебе выпадает чужой вишлист — без имени, только цвет. Ты даришь — и никто ничего не знает до окончания события.',
     art: 'idea',
   },
   {
@@ -30,7 +30,7 @@ const STEPS = [
   {
     title: 'Жеребьёвка и тайна',
     text:
-      'Пока регистрация открыта — заполняй вишлист. После раздачи открывается один чужой список. Режим «Тайно» — только цвет и желания. «Нетайно» — ещё заметка, пункт WB и ссылка для связи, но имя по-прежнему не показывается. Подари до указанной даты.',
+      'Пока регистрация открыта — заполняй вишлист. После раздачи открывается один чужой список. Режим «Тайно» — только цвет и желания. «Нетайно» — ещё заметка, пункт WB и ссылка для связи, но имя по-прежнему не показывается. Подари до указанной даты — и никто ничего не знает до окончания события.',
     art: 'draw',
   },
 ]
@@ -128,22 +128,36 @@ export function Onboarding({ onDone }) {
     setStep((s) => Math.max(0, s - 1))
   }
 
-  function onTouchStart(event) {
-    const t = event.changedTouches?.[0]
-    if (!t) return
-    touchRef.current = { x: t.clientX, y: t.clientY, active: true }
-  }
-
-  function onTouchEnd(event) {
-    if (!touchRef.current.active) return
-    const t = event.changedTouches?.[0]
-    touchRef.current.active = false
-    if (!t) return
-    const dx = t.clientX - touchRef.current.x
-    const dy = t.clientY - touchRef.current.y
+  function swipeFrom(dx, dy) {
     if (Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy)) return
     if (dx < 0) goNext()
     else if (!first) goPrev()
+  }
+
+  function onTouchStart(event) {
+    const t = event.changedTouches?.[0]
+    if (!t) return
+    touchRef.current = { x: t.clientX, y: t.clientY, active: true, pointer: false }
+  }
+
+  function onTouchEnd(event) {
+    if (!touchRef.current.active || touchRef.current.pointer) return
+    const t = event.changedTouches?.[0]
+    touchRef.current.active = false
+    if (!t) return
+    swipeFrom(t.clientX - touchRef.current.x, t.clientY - touchRef.current.y)
+  }
+
+  function onPointerDown(event) {
+    if (event.pointerType === 'touch') return
+    if (event.button != null && event.button !== 0) return
+    touchRef.current = { x: event.clientX, y: event.clientY, active: true, pointer: true }
+  }
+
+  function onPointerUp(event) {
+    if (!touchRef.current.active || !touchRef.current.pointer) return
+    touchRef.current.active = false
+    swipeFrom(event.clientX - touchRef.current.x, event.clientY - touchRef.current.y)
   }
 
   return (
@@ -152,6 +166,11 @@ export function Onboarding({ onDone }) {
         className="onboard-card"
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
+        onPointerDown={onPointerDown}
+        onPointerUp={onPointerUp}
+        onPointerCancel={() => {
+          touchRef.current.active = false
+        }}
       >
         <StepArt kind={current.art} />
         <p className="crumb">
