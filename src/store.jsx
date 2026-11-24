@@ -120,21 +120,66 @@ export function StoreProvider({ children }) {
   const refreshRoomExtras = useCallback(async (numericId, summary) => {
     if (!numericId) return
     try {
-      const [formRes, wishRes, assignRes] = await Promise.all([
+      const [detail, formRes, wishRes, assignRes] = await Promise.all([
+        api.room(numericId).catch(() => null),
         api.form(numericId).catch(() => null),
         api.wishlist(numericId).catch(() => ({ items: [], canEdit: false })),
         api.assignment(numericId).catch(() => null),
       ])
+      if (detail?.room) {
+        const nextCount = Number(detail.room.memberCount) || 0
+        const nextPhase = detail.room.phase
+        const nextLocked = Boolean(detail.room.drawLocked)
+        const nextDraw = new Date(detail.room.registrationEndsAt).getTime()
+        const nextGift = new Date(detail.room.deliveryAt).getTime()
+        setRooms((prev) =>
+          prev.map((r) => {
+            if (String(r.numericId) !== String(numericId)) return r
+            if (
+              r.memberCount === nextCount &&
+              r.phase === nextPhase &&
+              r.drawLocked === nextLocked &&
+              r.drawAt === nextDraw &&
+              r.giftBy === nextGift
+            ) {
+              return r
+            }
+            return {
+              ...r,
+              memberCount: nextCount,
+              phase: nextPhase,
+              forceDrawn: nextPhase !== 'REGISTRATION',
+              drawLocked: nextLocked,
+              drawAt: nextDraw,
+              giftBy: nextGift,
+              title: detail.room.title || r.title,
+              budget: detail.room.budgetMin === detail.room.budgetMax ? detail.room.budgetMin : detail.room.budgetMax,
+              currency: detail.room.currency || r.currency,
+            }
+          }),
+        )
+      }
       setForm(formRes)
       setWishlist(wishRes || { items: [], canEdit: false })
       setAssignment(assignRes)
 
-      if (summary?.hasAdminTab) {
+      const hasAdmin = summary?.hasAdminTab ?? detail?.room?.hasAdminTab
+      if (hasAdmin) {
         const [people, reqs] = await Promise.all([
           api.adminParticipants(numericId).catch(() => ({ participants: [] })),
           api.adminChangeRequests(numericId).catch(() => ({ items: [] })),
         ])
-        setParticipants(people.participants || [])
+        const list = people.participants || []
+        setParticipants(list)
+        if (list.length > 0) {
+          setRooms((prev) =>
+            prev.map((r) =>
+              String(r.numericId) === String(numericId) && (r.memberCount || 0) < list.length
+                ? { ...r, memberCount: list.length }
+                : r,
+            ),
+          )
+        }
         setChangeRequests(reqs.items || [])
       } else {
         setParticipants([])

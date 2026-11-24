@@ -59,9 +59,10 @@ export function Photo({ src, alt }) {
   const [failed, setFailed] = useState(false)
   const resolved = mediaUrl(src)
   if (!resolved || failed) {
+    const mark = (alt || '?').trim().slice(0, 1).toUpperCase() || '?'
     return (
-      <div className="ph" role="img" aria-label={alt}>
-        <span>{alt}</span>
+      <div className="ph" role="img" aria-label={alt || 'без фото'}>
+        <span aria-hidden="true">{mark}</span>
       </div>
     )
   }
