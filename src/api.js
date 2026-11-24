@@ -31,7 +31,7 @@ async function request(path, options = {}) {
   if (!headers.has('Content-Type') && !(options.body instanceof FormData)) {
     headers.set('Content-Type', 'application/json')
   }
-  const skipAuth = path.startsWith('/api/auth/')
+  const skipAuth = path.startsWith('/api/auth/') || path.startsWith('/api/track/')
   if (token && !skipAuth) headers.set('Authorization', `Bearer ${token}`)
 
   const res = await fetch(`${API_BASE}${path}`, { ...options, headers })
@@ -52,9 +52,39 @@ async function request(path, options = {}) {
   return data
 }
 
+function visitorKey() {
+  try {
+    const key = 'taino-visitor'
+    let value = localStorage.getItem(key)
+    if (!value) {
+      value = crypto.randomUUID?.() || `v_${Math.random().toString(36).slice(2)}_${Date.now()}`
+      localStorage.setItem(key, value)
+    }
+    return value
+  } catch {
+    return undefined
+  }
+}
+
+export function trackingCodeFromStart(startParam = '') {
+  const p = String(startParam || '')
+  if (p.toLowerCase().startsWith('trk_')) return p.slice(4)
+  if (p.toLowerCase().startsWith('t_')) return p.slice(2)
+  return ''
+}
+
 export const api = {
   login: (initData) =>
     request('/api/auth/telegram', { method: 'POST', body: JSON.stringify({ initData }) }),
+  trackOpen: (payload = {}) =>
+    request('/api/track/open', {
+      method: 'POST',
+      body: JSON.stringify({
+        visitorKey: visitorKey(),
+        referrer: typeof document !== 'undefined' ? document.referrer || '' : '',
+        ...payload,
+      }),
+    }).catch(() => null),
   me: () => request('/api/me'),
   rooms: () => request('/api/rooms'),
   archivedRooms: () => request('/api/rooms/archived'),
