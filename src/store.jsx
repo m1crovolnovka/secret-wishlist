@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { api, setToken } from './api'
+import { api, setToken, trackingCodeFromStart } from './api'
 import { colorById, themeOf, themeToken } from './data'
 import { compressImageFile } from './imageCompress'
 import { getInitData, getStartParam, haptic, initTelegram } from './telegram'
@@ -275,11 +275,15 @@ export function StoreProvider({ children }) {
         // Always refresh JWT from fresh initData — stale tokens on mobile WebViews
         // used to produce «Сессия недействительна» when sent with /api/auth.
         setToken('')
+        const start = getStartParam()
+        const trackCode = trackingCodeFromStart(start)
+        // Fire-and-forget open beacon before auth (public endpoint)
+        api.trackOpen({ code: trackCode || undefined, startParam: start || undefined })
+
         const auth = await api.login(initData)
         setToken(auth.accessToken)
         setUser(auth.user)
 
-        const start = getStartParam()
         if (start.startsWith('room_')) {
           try {
             const joined = await api.joinRoom(start.slice(5))
