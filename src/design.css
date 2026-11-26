@@ -93,6 +93,11 @@ main {
   height: 100%;
   object-fit: cover;
 }
+.avatar-letter {
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1;
+}
 
 .back-chip {
   width: 40px;
@@ -193,12 +198,17 @@ main {
 .btn-secondary {
   background: #fff;
   color: var(--ink);
-  border: 1.5px solid color-mix(in srgb, var(--ink) 22%, transparent);
+  border: 2px solid color-mix(in srgb, var(--ink) 55%, transparent);
+  box-shadow: 0 2px 0 color-mix(in srgb, var(--ink) 12%, transparent);
+}
+.btn-secondary:active {
+  transform: translateY(1px);
+  box-shadow: none;
 }
 
 /* ——— Home ——— */
 .home {
-  padding: var(--page-top) var(--page-pad) 24px;
+  padding: var(--page-top) var(--page-pad) calc(24px + var(--tabbar-h) + env(safe-area-inset-bottom, 0px));
   display: grid;
   gap: 22px;
 }
@@ -546,7 +556,7 @@ main {
 
 /* ——— Find / Profile ——— */
 .page-r {
-  padding: var(--page-top) var(--page-pad) 28px;
+  padding: var(--page-top) var(--page-pad) calc(28px + var(--tabbar-h) + env(safe-area-inset-bottom, 0px));
   display: grid;
   gap: 18px;
 }
@@ -681,7 +691,7 @@ main {
 
 /* ——— Room ——— */
 .room-page {
-  padding: var(--page-top) var(--page-pad) 28px;
+  padding: var(--page-top) var(--page-pad) calc(28px + var(--tabbar-h) + env(safe-area-inset-bottom, 0px));
   display: grid;
   gap: 14px;
 }
@@ -979,3 +989,85 @@ body.redesign .presence strong {
   color: #a83f62 !important;
   border-color: color-mix(in srgb, #a83f62 35%, transparent) !important;
 }
+
+.btn-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 8px 14px;
+  border-radius: 12px;
+  border: 2px solid color-mix(in srgb, currentColor 55%, transparent);
+  background: color-mix(in srgb, #fff 88%, transparent);
+  color: inherit;
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  letter-spacing: -0.01em;
+}
+.btn-chip.solid {
+  background: var(--ink);
+  color: #fff;
+  border-color: var(--ink);
+}
+.btn-chip.ghost {
+  background: transparent;
+  border-color: color-mix(in srgb, currentColor 45%, transparent);
+}
+.btn-secondary.narrow {
+  width: auto;
+  min-height: 40px;
+  padding: 8px 14px;
+  font-size: 13px;
+}
+
+.notebook-r .notebook-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: space-between;
+}
+.notebook-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.notebook-title-row h1 {
+  margin: 0;
+  flex: 1;
+}
+.notebook-list {
+  display: grid;
+  gap: 10px;
+}
+
+body.redesign .field .text-btn,
+body.redesign .field .buy {
+  font-family: var(--sans);
+  text-decoration: none;
+}
+
+body.redesign .field .gift-actions {
+  gap: 8px;
+}
+
+body.redesign .field .btn-chip {
+  background: color-mix(in srgb, #fff 22%, transparent);
+  border-color: color-mix(in srgb, currentColor 40%, transparent);
+}
+body.redesign .field .btn-chip.solid {
+  background: color-mix(in srgb, #fff 92%, transparent);
+  color: var(--ink);
+  border-color: transparent;
+}
+body.redesign .field .btn-chip.ghost {
+  background: transparent;
+}
+
+body.redesign .field .room-actions .btn-secondary {
+  background: color-mix(in srgb, #fff 92%, transparent);
+  color: var(--ink);
+  border-color: transparent;
+}
+

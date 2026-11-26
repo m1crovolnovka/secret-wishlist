@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { mediaUrl } from './api'
 import { MIN_PEOPLE, THEMES, peopleCount, themeToken } from './data'
 import { useGo, useStore } from './store'
+import { getTelegramPhotoUrl } from './telegram'
 
 const LIPS = [
   'M0,100 C240,20 480,170 720,96 C960,22 1200,168 1440,90 L1440,800 C1200,880 960,730 720,804 C480,878 240,724 0,810 Z',
@@ -321,6 +322,8 @@ export function Header() {
   const location = useLocation()
   const navigate = useNavigate()
   const user = data.user
+  const photoUrl = user?.photoUrl || getTelegramPhotoUrl()
+  const avatarLetter = (user?.firstName || user?.username || '?').trim().slice(0, 1).toUpperCase()
   const token = themeToken(room?.theme)
   const path = location.pathname
 
@@ -376,7 +379,13 @@ export function Header() {
           aria-label="профиль"
           onClick={() => travel(user ? '/cabinet' : '/find')}
         >
-          <IconProfile active />
+          {photoUrl ? (
+            <img src={photoUrl} alt="" />
+          ) : user ? (
+            <span className="avatar-letter">{avatarLetter}</span>
+          ) : (
+            <IconProfile active />
+          )}
         </button>
       </header>
 
@@ -573,13 +582,13 @@ export function Collection({ wl, kicker, side, particle = 'snow', onClaim, onUnc
                 {claimedMe && <p className="claim-badge me">твоя отметка: подарю</p>}
                 <div className="gift-actions">
                   {gift.url ? (
-                    <a className="buy" href={gift.url} target="_blank" rel="noreferrer">
-                      к покупке
+                    <a className="btn-chip" href={gift.url} target="_blank" rel="noreferrer">
+                      К покупке
                     </a>
                   ) : null}
                   {claimable && !claimedOther && (
                     <button
-                      className="text-btn claim-btn"
+                      className={claimedMe ? 'btn-chip ghost' : 'btn-chip solid'}
                       type="button"
                       disabled={claimBusyId === gift.id}
                       onClick={() => (claimedMe ? onUnclaim?.(gift.id) : onClaim?.(gift.id))}
@@ -587,8 +596,8 @@ export function Collection({ wl, kicker, side, particle = 'snow', onClaim, onUnc
                       {claimBusyId === gift.id
                         ? '…'
                         : claimedMe
-                          ? 'снять отметку'
-                          : 'подарю'}
+                          ? 'Снять отметку'
+                          : 'Подарю'}
                     </button>
                   )}
                 </div>
