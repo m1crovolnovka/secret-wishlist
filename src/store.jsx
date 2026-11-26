@@ -382,7 +382,7 @@ export function StoreProvider({ children }) {
   }, [room?.numericId, room?.phase, refreshRoomExtras, room])
 
   const createRoom = useCallback(
-    async (spec) => {
+    async (spec, options = {}) => {
       const body = {
         title: spec.title,
         theme: spec.theme,
@@ -399,10 +399,14 @@ export function StoreProvider({ children }) {
       const detail = await api.createRoom(body)
       haptic('success')
       await loadRooms(detail.room.id)
+      if (options.skipNavigate) {
+        return detail
+      }
       transition(themeToken(detail.room.theme), () => {
         navigate('/room')
         window.scrollTo(0, 0)
       })
+      return detail
     },
     [loadRooms, navigate, transition],
   )

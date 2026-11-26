@@ -52,6 +52,14 @@ export default function App() {
     }
   }, [boot.loading, boot.error, boot.guest])
 
+  useEffect(() => {
+    function onReplay() {
+      setShowOnboard(true)
+    }
+    window.addEventListener('taino:onboarding', onReplay)
+    return () => window.removeEventListener('taino:onboarding', onReplay)
+  }, [])
+
   if (boot.loading) {
     return (
       <main className="boot-screen">

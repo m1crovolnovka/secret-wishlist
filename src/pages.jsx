@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import { Navigate, useParams } from 'react-router-dom'
 import {
   Collection,
+  GiftMini,
   Hint,
   Photo,
   Squiggle,
-  Stepper,
   ThemePicker,
   Timer,
   Weather,
@@ -24,12 +24,12 @@ import {
   money,
   peopleCount,
   readBudget,
-  roomMark,
   themeOf,
   toInput,
 } from './data'
 import { api } from './api'
 import { compressImageFile } from './imageCompress'
+import { openOnboardingAgain } from './Onboarding'
 import { useGo, useStore } from './store'
 import { haptic } from './telegram'
 
@@ -153,6 +153,9 @@ export function RoomLobby() {
   const [personalLists, setPersonalLists] = useState([])
   const [pickListId, setPickListId] = useState('')
   const [attachHint, setAttachHint] = useState('')
+  const [inviteToast, setInviteToast] = useState('')
+  const [revealOpen, setRevealOpen] = useState(false)
+  const [revealDone, setRevealDone] = useState(false)
   const attachLock = useRef(false)
   useTitle(isRevealed ? 'тебе выпало' : room?.title || 'комната')
 
@@ -160,8 +163,39 @@ export function RoomLobby() {
     setWishOpen(false)
     setPickListId('')
     setAttachHint('')
+    setInviteToast('')
+    setRevealOpen(false)
+    setRevealDone(false)
     attachLock.current = false
   }, [room?.id])
+
+  useEffect(() => {
+    if (!isRevealed || !assignment || !room?.id) return undefined
+    const key = `taino-reveal-${room.id}`
+    try {
+      if (sessionStorage.getItem(key) === '1') {
+        setRevealDone(true)
+        setRevealOpen(true)
+        return undefined
+      }
+    } catch {
+      /* ignore */
+    }
+    const openTimer = setTimeout(() => setRevealOpen(true), 280)
+    const doneTimer = setTimeout(() => {
+      setRevealDone(true)
+      try {
+        sessionStorage.setItem(key, '1')
+      } catch {
+        /* ignore */
+      }
+      haptic('medium')
+    }, 1400)
+    return () => {
+      clearTimeout(openTimer)
+      clearTimeout(doneTimer)
+    }
+  }, [isRevealed, assignment, room?.id])
 
   useEffect(() => {
     if (!wishOpen) return undefined
@@ -223,21 +257,18 @@ export function RoomLobby() {
 
   if (!room) {
     return (
-      <section className="hero">
-        <div className="hero-copy">
-          <p className="crumb">Тайно</p>
-          <h1>Нет активной комнаты</h1>
-          <p className="note">Выбери комнату на главной или войди по приглашению.</p>
-          <div className="row-actions">
-            <button className="fill" type="button" onClick={() => go('/')}>
-              К комнатам
-            </button>
-            <button className="text-btn" type="button" onClick={() => go('/find')}>
-              Найти комнату
-            </button>
-          </div>
+      <div className="page-r">
+        <h1>Нет активной комнаты</h1>
+        <p className="lead">Выбери комнату на главной или войди по приглашению.</p>
+        <div className="room-actions">
+          <button className="btn-primary" type="button" onClick={() => go('/')}>
+            На главную
+          </button>
+          <button className="btn-secondary" type="button" onClick={() => go('/find')}>
+            Найти комнату
+          </button>
         </div>
-      </section>
+      </div>
     )
   }
 
@@ -266,6 +297,31 @@ export function RoomLobby() {
         setClaimBusyId(null)
       }
     }
+
+    if (!revealDone) {
+      return (
+        <div className="page-r color-reveal">
+          <Weather type="confetti" count={18} />
+          <p className="lead">Твоя цветовая карточка</p>
+          <div className={revealOpen ? 'color-card-flip open' : 'color-card-flip'}>
+            <div className="color-face front" style={{ background: theme.band, color: theme.ink }}>
+              <div className="ribbon" />
+              <strong>ТАЙНО</strong>
+              <span>переверни…</span>
+            </div>
+            <div
+              className="color-face back"
+              style={{ background: assignment.base || theme.band, color: assignment.ink || theme.ink }}
+            >
+              <div className="ribbon" />
+              <strong style={{ fontSize: '1.4rem' }}>{assignment.name || 'Цвет'}</strong>
+              <span>твой получатель</span>
+            </div>
+          </div>
+        </div>
+      )
+    }
+
     return (
       <Collection
         wl={assignment}
@@ -282,7 +338,8 @@ export function RoomLobby() {
                 : 'Собери это тихо. Имя не показывается — только цвет списка.'}
             </p>
             <p className="note aside">
-              Можно отметить «подарю». Если тот же вишлист в другой комнате — другие дарители увидят отметку. Владелец списка — нет.
+              Можно отметить «подарю». Если тот же вишлист в другой комнате — другие дарители увидят отметку. Владелец
+              списка — нет.
             </p>
             {assignment.note && <p className="note">Заметка: {assignment.note}</p>}
             {openMode && assignment.wbPickup && <p className="note">Пункт WB: {assignment.wbPickup}</p>}
@@ -302,14 +359,14 @@ export function RoomLobby() {
             )}
             <Timer to={room.giftBy} now={now} />
             <p className="timer-date">подарить до {formatWhen(room.giftBy)}</p>
-            <div className="row-actions">
+            <div className="room-actions">
               {isGlobalAdmin && (
-                <button className="text-btn" type="button" onClick={() => go('/admin')}>
+                <button className="btn-secondary" type="button" onClick={() => go('/admin')}>
                   Настройки
                 </button>
               )}
               {isAdmin && (
-                <button className="text-btn" type="button" onClick={() => go('/colors')}>
+                <button className="btn-secondary" type="button" onClick={() => go('/colors')}>
                   Люди
                 </button>
               )}
@@ -360,280 +417,310 @@ export function RoomLobby() {
     }
   }
 
+  async function copyInvite() {
+    const invite = room.inviteLink || `Код комнаты Тайно: ${room.code}`
+    try {
+      await navigator.clipboard.writeText(invite)
+      setInviteToast(room.inviteLink ? 'Ссылка скопирована' : 'Код скопирован')
+    } catch {
+      setInviteToast(invite)
+    }
+    setTimeout(() => setInviteToast(''), 2000)
+  }
+
+  const needMore = Math.max(0, MIN_PEOPLE - count)
+  const drawBlocked = !drawn && needMore > 0
+
   return (
-    <>
-      <section className="hero">
-        <Weather type={theme.particle} color={theme.particle === 'snow' ? '#6d8ca4' : theme.ink} count={22} />
-        <div className="blob blob-a" />
-        <div className="blob blob-b" />
-        <div className="hero-copy">
-          <p className="crumb">
-            {theme.label} · {peopleCount(count)}
+    <div className="room-page">
+      <div className="room-hero-card" style={{ background: theme.band, color: theme.ink }}>
+        <p className="crumb-r">
+          {theme.label} · {peopleCount(count)}
+          {room.myRole === 'OWNER' || room.canTune ? ' · организатор' : ''}
+        </p>
+        <h1>{room.title}</h1>
+        {budget && (
+          <p className="budget">
+            <span>сумма</span>
+            <b>{budget}</b>
           </p>
-          <h1>{room.title}</h1>
-          {budget && (
-            <p className="budget">
-              <span>сумма подарка</span>
-              <b>{budget}</b>
-            </p>
-          )}
-          <Timer to={drawn ? room.giftBy : room.drawAt} now={now} />
-          <p className="timer-date">
-            {drawn ? `вручить до ${formatWhen(room.giftBy)}` : `раздача ${formatWhen(room.drawAt)}`}
+        )}
+        <span className="room-art" aria-hidden="true" style={{ position: 'absolute', right: 8, bottom: 4, opacity: 0.85 }}>
+          <GiftMini size={72} />
+        </span>
+      </div>
+
+      <div className="timer-card">
+        <span className="timer-label">{drawn ? 'подарить до' : 'до жеребьёвки'}</span>
+        <Timer to={drawn ? room.giftBy : room.drawAt} now={now} />
+        <p className="timer-date">
+          {drawn ? `вручить до ${formatWhen(room.giftBy)}` : `раздача ${formatWhen(room.drawAt)}`}
+        </p>
+        {drawBlocked && (
+          <p className="demo-hint">
+            Для раздачи нужно ещё {needMore} {needMore === 1 ? 'участник' : needMore < 5 ? 'участника' : 'участников'}.
           </p>
-        </div>
-        <div className="hero-side">
-          <div className="label">
-            <Squiggle color={theme.ink} />
-            <span>что дальше</span>
-          </div>
-          <p className="note">
-            {drawn
-              ? 'Раздача уже прошла — открой выпавший список.'
-              : `Составь вишлист. В комнате ${peopleCount(count)}. После раздачи откроется один чужой список — без имени, только цвет.`}
+        )}
+        {!drawn && !drawBlocked && (
+          <p className="demo-hint">
+            В комнате {peopleCount(count)}. После раздачи откроется один чужой список — без имени, только цвет.
             {hosting ? ' Ты ведёшь комнату и в раздаче не участвуешь.' : ''}
           </p>
-          <div className="row-actions">
-            {canEditWish ? (
-              <button className="fill" type="button" onClick={toggleWish} aria-expanded={wishOpen}>
-                {wishOpen ? 'Свернуть вишлист' : 'Составить вишлист'}
-              </button>
-            ) : (
-              <button className="fill" type="button" onClick={() => go('/cabinet')}>
-                Открыть профиль
-              </button>
-            )}
-            {isGlobalAdmin ? (
-              drawn ? (
-                <button className="text-btn" type="button" onClick={() => undraw()}>
-                  Перерозыгрыш
-                </button>
-              ) : (
-                <button className="text-btn" type="button" onClick={() => drawNow()}>
-                  Разыграть сейчас
-                </button>
-              )
-            ) : null}
-          </div>
-          {isGlobalAdmin && actionError && <p className="err">{actionError}</p>}
+        )}
+      </div>
 
-          <div
-            ref={wishRef}
-            className={wishOpen ? 'wish-panel open' : 'wish-panel'}
-            aria-hidden={!wishOpen}
-          >
-            <div className="wish-panel-inner">
-              <div className="wish-inline">
-                <div className="label">
-                  <Squiggle />
-                  <span>твой вишлист · {room.title}</span>
-                </div>
-                <div className="open-fields">
-                  <label className="line">
-                    <span>отображаемое имя в комнате</span>
-                    <input
-                      value={displayName}
-                      onChange={(e) => setDisplayName(e.target.value)}
-                      disabled={!room.canEdit}
-                      placeholder="как тебя увидят участники"
-                      maxLength={80}
-                    />
-                  </label>
-                  {room.canEdit && (
-                    <div className="copy-wish personal-pick">
-                      <div className="label">
-                        <Squiggle />
-                        <span>из моих вишлистов</span>
-                      </div>
-                      <p className="note">Выбери готовый список — позиции добавятся в вишлист этой комнаты.</p>
-                      <div className="row-actions form-actions">
-                        <select
-                          value={pickListId}
-                          onChange={(e) => setPickListId(e.target.value)}
-                          disabled={busy || personalLists.length === 0}
-                          aria-label="личный вишлист"
-                        >
-                          <option value="">
-                            {personalLists.length === 0 ? 'пока нет личных списков' : 'выбери список…'}
-                          </option>
-                          {personalLists.map((item) => (
-                            <option key={item.id} value={item.id}>
-                              {item.title} · {item.itemCount || 0} жел.
-                            </option>
-                          ))}
-                        </select>
-                        <button
-                          className="fill"
-                          type="button"
-                          disabled={busy || !pickListId}
-                          onClick={async () => {
-                            if (!pickListId || attachLock.current) return
-                            attachLock.current = true
-                            setBusy(true)
-                            setErr('')
-                            setAttachHint('')
-                            try {
-                              const res = await attachPersonalWishlist(pickListId)
-                              setAttachHint(
-                                `Добавлено: ${res.copied || 0}` +
-                                  (res.skipped ? `, пропущено ${res.skipped}` : ''),
-                              )
-                            } catch (e) {
-                              setErr(e.message || 'не удалось добавить список')
-                            } finally {
-                              attachLock.current = false
-                              setBusy(false)
-                            }
-                          }}
-                        >
-                          {busy ? 'Добавляю…' : 'Добавить в комнату'}
-                        </button>
-                      </div>
-                      {attachHint && <p className="demo-hint">{attachHint}</p>}
-                      {personalLists.length === 0 && (
-                        <button className="text-btn" type="button" onClick={() => go('/cabinet')}>
-                          Создать вишлист в профиле
-                        </button>
-                      )}
-                    </div>
-                  )}
-                  {room.secrecyMode === 'OPEN' && (
-                    <>
-                      <label className="line">
-                        <span>заметка дарителю</span>
-                        <textarea
-                          rows={2}
-                          value={noteDraft}
-                          onChange={(e) => setNoteDraft(e.target.value)}
-                          disabled={!room.canEdit}
-                          placeholder="размер, адрес, пожелания…"
-                        />
-                      </label>
-                      <p className="demo-hint note-preview-hint">
-                        Не привязана к позиции: после раздачи даритель увидит её над твоим списком.
-                        {noteDraft.trim() ? ` Сейчас: «${noteDraft.trim()}»` : ''}
-                      </p>
-                      <label className="line">
-                        <span>пункт выдачи WB</span>
-                        <input
-                          value={wbPickup}
-                          onChange={(e) => setWbPickup(e.target.value)}
-                          disabled={!room.canEdit}
-                          placeholder="город, ПВЗ…"
-                        />
-                      </label>
-                      <label className="line">
-                        <span>ссылка на Telegram</span>
-                        <input
-                          value={contactLink}
-                          onChange={(e) => setContactLink(e.target.value)}
-                          disabled={!room.canEdit}
-                          placeholder="@username или t.me/…"
-                        />
-                      </label>
-                    </>
-                  )}
-                </div>
-                <form className="stack-form wish-form" onSubmit={submitWish}>
-                  <label className="line">
-                    <span>название</span>
-                    <input value={title} onChange={(e) => setTitle(e.target.value)} />
-                  </label>
-                  <label className="line">
-                    <span>ссылка на покупку</span>
-                    <input
-                      value={url}
-                      onChange={(e) => setUrl(e.target.value)}
-                      placeholder="https://"
-                      inputMode="url"
-                    />
-                  </label>
-                  <div className="photo-row">
-                    <input
-                      ref={fileRef}
-                      type="file"
-                      accept="image/*"
-                      hidden
-                      onChange={(e) => {
-                        const next = e.target.files?.[0]
-                        setFile(next || null)
-                        setFileName(next?.name || '')
+      <div className="room-actions">
+        {canEditWish ? (
+          <button className="btn-primary" type="button" onClick={toggleWish} aria-expanded={wishOpen}>
+            {wishOpen ? 'Свернуть вишлист' : gifts.length ? 'Редактировать вишлист' : 'Составить вишлист'}
+          </button>
+        ) : null}
+        <button className="btn-secondary" type="button" onClick={copyInvite}>
+          Пригласить в комнату
+        </button>
+        {isGlobalAdmin ? (
+          drawn ? (
+            <button className="btn-secondary" type="button" onClick={() => undraw()}>
+              Перерозыгрыш
+            </button>
+          ) : (
+            <button
+              className="btn-secondary"
+              type="button"
+              disabled={drawBlocked}
+              onClick={() => {
+                if (!window.confirm('Разыграть пары прямо сейчас?')) return
+                drawNow()
+              }}
+            >
+              Разыграть сейчас
+            </button>
+          )
+        ) : null}
+      </div>
+      {isGlobalAdmin && actionError && <p className="err">{actionError}</p>}
+
+      <div ref={wishRef} className={wishOpen ? 'wish-panel open' : 'wish-panel'} aria-hidden={!wishOpen}>
+        <div className="wish-panel-inner">
+          <div className="wish-inline">
+            <div className="label">
+              <Squiggle />
+              <span>твой вишлист · {room.title}</span>
+            </div>
+            <div className="open-fields">
+              <label className="field-r">
+                <span>имя в комнате</span>
+                <input
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  disabled={!room.canEdit}
+                  placeholder="как тебя увидят участники"
+                  maxLength={80}
+                />
+              </label>
+              {room.canEdit && (
+                <div className="copy-wish personal-pick">
+                  <div className="label">
+                    <Squiggle />
+                    <span>из моих вишлистов</span>
+                  </div>
+                  <p className="note">Выбери готовый список — позиции добавятся в вишлист этой комнаты.</p>
+                  <div className="row-actions form-actions">
+                    <select
+                      value={pickListId}
+                      onChange={(e) => setPickListId(e.target.value)}
+                      disabled={busy || personalLists.length === 0}
+                      aria-label="личный вишлист"
+                    >
+                      <option value="">
+                        {personalLists.length === 0 ? 'пока нет личных списков' : 'выбери список…'}
+                      </option>
+                      {personalLists.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.title} · {item.itemCount || 0} жел.
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      className="btn-primary"
+                      type="button"
+                      disabled={busy || !pickListId}
+                      onClick={async () => {
+                        if (!pickListId || attachLock.current) return
+                        attachLock.current = true
+                        setBusy(true)
+                        setErr('')
+                        setAttachHint('')
+                        try {
+                          const res = await attachPersonalWishlist(pickListId)
+                          setAttachHint(
+                            `Добавлено: ${res.copied || 0}` + (res.skipped ? `, пропущено ${res.skipped}` : ''),
+                          )
+                        } catch (e) {
+                          setErr(e.message || 'не удалось добавить список')
+                        } finally {
+                          attachLock.current = false
+                          setBusy(false)
+                        }
                       }}
-                    />
-                    <button className="text-btn" type="button" onClick={() => fileRef.current?.click()}>
-                      {fileName || 'Прикрепить фото'}
+                    >
+                      {busy ? 'Добавляю…' : 'Добавить в комнату'}
                     </button>
                   </div>
-                  {err && <p className="err">{err}</p>}
-                  {saveError && <p className="err">Ошибка сохранения. Попробуй ещё раз.</p>}
-                  <button className="fill" type="submit" disabled={busy}>
-                    {busy ? 'Добавляю…' : 'Добавить в вишлист'}
-                  </button>
-                </form>
-
-                {gifts.length === 0 ? (
-                  <p className="note">Пока пусто — добавь первое желание.</p>
-                ) : (
-                  <ul className="mine">
-                    {gifts.map((gift) => (
-                      <li key={gift.id}>
-                        <div className="frame">
-                          <Photo src={gift.photo} alt={gift.title} />
-                        </div>
-                        <div>
-                          <h3>{gift.title}</h3>
-                          <div className="item-actions">
-                            {gift.url ? (
-                              <a className="buy" href={gift.url} target="_blank" rel="noreferrer">
-                                к покупке
-                              </a>
-                            ) : (
-                              <span className="meta-plain">без ссылки</span>
-                            )}
-                            <button className="text-btn" type="button" onClick={() => removeGift(gift.id)}>
-                              убрать
-                            </button>
-                          </div>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                {room.secrecyMode === 'OPEN' && noteDraft.trim() && (
-                  <p className="note wish-note-preview">
-                    <b>Заметка дарителю:</b> {noteDraft.trim()}
+                  {attachHint && <p className="demo-hint">{attachHint}</p>}
+                  {personalLists.length === 0 && (
+                    <button className="btn-secondary" type="button" onClick={() => go('/')}>
+                      Создать вишлист на главной
+                    </button>
+                  )}
+                </div>
+              )}
+              {room.secrecyMode === 'OPEN' && (
+                <>
+                  <label className="field-r">
+                    <span>заметка дарителю</span>
+                    <textarea
+                      rows={2}
+                      value={noteDraft}
+                      onChange={(e) => setNoteDraft(e.target.value)}
+                      disabled={!room.canEdit}
+                      placeholder="размер, адрес, пожелания…"
+                    />
+                  </label>
+                  <p className="demo-hint note-preview-hint">
+                    Не привязана к позиции: после раздачи даритель увидит её над твоим списком.
+                    {noteDraft.trim() ? ` Сейчас: «${noteDraft.trim()}»` : ''}
                   </p>
-                )}
+                  <label className="field-r">
+                    <span>пункт выдачи WB</span>
+                    <input
+                      value={wbPickup}
+                      onChange={(e) => setWbPickup(e.target.value)}
+                      disabled={!room.canEdit}
+                      placeholder="город, ПВЗ…"
+                    />
+                  </label>
+                  <label className="field-r">
+                    <span>ссылка на Telegram</span>
+                    <input
+                      value={contactLink}
+                      onChange={(e) => setContactLink(e.target.value)}
+                      disabled={!room.canEdit}
+                      placeholder="@username или t.me/…"
+                    />
+                  </label>
+                </>
+              )}
+            </div>
+            <form className="stack-form wish-form" onSubmit={submitWish}>
+              <label className="field-r">
+                <span>название</span>
+                <input value={title} onChange={(e) => setTitle(e.target.value)} />
+              </label>
+              <label className="field-r">
+                <span>ссылка на покупку</span>
+                <input
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  placeholder="https://"
+                  inputMode="url"
+                />
+              </label>
+              <div className="photo-row">
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="image/*"
+                  hidden
+                  onChange={(e) => {
+                    const next = e.target.files?.[0]
+                    setFile(next || null)
+                    setFileName(next?.name || '')
+                  }}
+                />
+                <button className="btn-secondary" type="button" onClick={() => fileRef.current?.click()}>
+                  {fileName || 'Прикрепить фото'}
+                </button>
               </div>
-            </div>
-          </div>
-
-          <InviteShare room={room} />
-          {(isGlobalAdmin || isAdmin) && (
-            <div className="row-actions room-owner-actions">
-              {isGlobalAdmin && (
-                <button className="fill" type="button" onClick={() => go('/admin')}>
-                  Настройки
-                </button>
-              )}
-              {isAdmin && (
-                <button className="text-btn" type="button" onClick={() => go('/colors')}>
-                  Люди
-                </button>
-              )}
-            </div>
-          )}
-          {canLeave && (
-            <div className="row-actions">
-              <button className="text-btn" type="button" onClick={() => leaveRoom()}>
-                Покинуть комнату
+              {err && <p className="err">{err}</p>}
+              {saveError && <p className="err">Ошибка сохранения. Попробуй ещё раз.</p>}
+              <button className="btn-primary" type="submit" disabled={busy}>
+                {busy ? 'Добавляю…' : 'Добавить в вишлист'}
               </button>
-            </div>
-          )}
-          {!isGlobalAdmin && actionError && <p className="err">{actionError}</p>}
+            </form>
+
+            {gifts.length === 0 ? (
+              <p className="empty-block">Пока пусто — добавь первое желание.</p>
+            ) : (
+              <ul className="mine">
+                {gifts.map((gift) => (
+                  <li key={gift.id}>
+                    <div className="frame">
+                      <Photo src={gift.photo} alt={gift.title} />
+                    </div>
+                    <div>
+                      <h3>{gift.title}</h3>
+                      <div className="item-actions">
+                        {gift.url ? (
+                          <a className="buy" href={gift.url} target="_blank" rel="noreferrer">
+                            к покупке
+                          </a>
+                        ) : (
+                          <span className="meta-plain">без ссылки</span>
+                        )}
+                        <button className="text-btn" type="button" onClick={() => removeGift(gift.id)}>
+                          убрать
+                        </button>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {room.secrecyMode === 'OPEN' && noteDraft.trim() && (
+              <p className="note wish-note-preview">
+                <b>Заметка дарителю:</b> {noteDraft.trim()}
+              </p>
+            )}
+          </div>
         </div>
-      </section>
-    </>
+      </div>
+
+      {(isGlobalAdmin || isAdmin) && (
+        <div className="room-actions">
+          {isGlobalAdmin && (
+            <button className="room-list-btn" type="button" onClick={() => go('/admin')}>
+              <span>
+                <strong>Настройки комнаты</strong>
+                <span>Сроки, бюджет, тема, доступ</span>
+              </span>
+              <span className="chev" aria-hidden="true">
+                ›
+              </span>
+            </button>
+          )}
+          {isAdmin && (
+            <button className="room-list-btn" type="button" onClick={() => go('/colors')}>
+              <span>
+                <strong>Участники</strong>
+                <span>{peopleCount(count)}</span>
+              </span>
+              <span className="chev" aria-hidden="true">
+                ›
+              </span>
+            </button>
+          )}
+        </div>
+      )}
+
+      {canLeave && (
+        <button className="btn-secondary" type="button" onClick={() => leaveRoom()}>
+          Покинуть комнату
+        </button>
+      )}
+      {!isGlobalAdmin && actionError && <p className="err">{actionError}</p>}
+      {inviteToast && <div className="toast-r">{inviteToast}</div>}
+    </div>
   )
 }
 
@@ -951,182 +1038,181 @@ function PersonRow({ person, themeId, active, onClick }) {
   )
 }
 
-function RoomCard({ item, room, now, onOpen, onSettings }) {
+function daysUntil(ts, now) {
+  const left = Math.max(0, ts - now)
+  return Math.ceil(left / 86400000)
+}
+
+function RoomCardR({ item, now, onOpen }) {
   const theme = themeOf(item.theme)
   const drawn = isDrawnRoom(item, now)
   const delivery = item.phase === 'DELIVERY'
+  const organizer = item.myRole === 'OWNER' || item.canTune
+  const days = daysUntil(item.drawAt, now)
+  const status = delivery
+    ? 'Раздача подарков'
+    : drawn
+      ? 'Жеребьёвка проведена'
+      : `До жеребьёвки ${days} ${days === 1 ? 'день' : days < 5 ? 'дня' : 'дней'}`
+
   return (
-    <article key={item.id} className="room-row" style={{ background: theme.band, color: theme.ink }}>
-      <svg className="lip" viewBox="0 0 1440 120" preserveAspectRatio="none" aria-hidden="true">
-        <path
-          fill={theme.band}
-          d="M0,70 C180,120 340,20 520,64 C740,116 900,16 1100,68 C1260,104 1360,36 1440,72 L1440,120 L0,120 Z"
-        />
-      </svg>
-      <button className="room-hit" type="button" onClick={onOpen}>
-        <p className="crumb">
-          {theme.label} · {item.myRole === 'OWNER' ? roomMark(item, { name: 'qqq', email: 'qqq@qqq' }) : 'участник'}
-          {item.id === room?.id ? ' · сейчас' : ''}
-        </p>
-        <h2>{item.title}</h2>
-        <span className="band-more">
-          {peopleCount(item.memberCount || 0)} ·{' '}
-          {delivery ? 'раздача подарков' : drawn ? 'список выпал' : 'скоро'}
-          {item.budget ? ` · ${money(item.budget, item.currency)}` : ''}
-          {item.code ? ` · код ${item.code}` : ''}
-        </span>
-      </button>
-      {item.canTune && onSettings && (
-        <button className="text-btn" type="button" onClick={onSettings}>
-          Настройки
-        </button>
-      )}
-    </article>
+    <button
+      type="button"
+      className="room-card-r"
+      style={{ background: theme.band, color: theme.ink }}
+      onClick={onOpen}
+    >
+      {organizer && <span className="owner-badge">организатор</span>}
+      <h3>{item.title}</h3>
+      <p className="sub">{theme.label}</p>
+      <div className="room-meta">
+        <span>{peopleCount(item.memberCount || 0)}</span>
+        {item.budget ? <span>{money(item.budget, item.currency)}</span> : null}
+      </div>
+      <span className="status-pill">{status}</span>
+      <span className="room-art" aria-hidden="true">
+        <GiftMini size={64} />
+      </span>
+    </button>
   )
 }
 
 export function Rooms() {
-  const { rooms, archivedRooms, room, focusRoom, now, deleteRoom, actionError, reload } = useStore()
-  const [roleTab, setRoleTab] = useState('member')
-  const [deletingId, setDeletingId] = useState(null)
-  useTitle('мои комнаты')
+  const { rooms, archivedRooms, room, focusRoom, now, reload } = useStore()
+  const go = useGo()
+  const [filter, setFilter] = useState('active')
+  const [wishlists, setWishlists] = useState([])
+  useTitle('главная')
 
   useEffect(() => {
     reload?.()
-    // only refresh counts when opening the list
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const memberRooms = [...rooms]
-    .filter((r) => r.myRole !== 'OWNER')
-    .sort((a, b) => {
-      if (a.id === room?.id) return -1
-      if (b.id === room?.id) return 1
-      return Number(b.numericId || 0) - Number(a.numericId || 0)
-    })
-  const adminRooms = [...rooms]
-    .filter((r) => r.myRole === 'OWNER' || r.canTune)
-    .sort((a, b) => {
-      if (a.id === room?.id) return -1
-      if (b.id === room?.id) return 1
-      return Number(b.numericId || 0) - Number(a.numericId || 0)
-    })
-  const list = roleTab === 'admin' ? adminRooms : memberRooms
-  const archived = [...archivedRooms].sort(
-    (a, b) => Number(b.giftBy || 0) - Number(a.giftBy || 0),
-  )
-
-  async function onDeleteArchived(item) {
-    if (!window.confirm(`Удалить комнату «${item.title}» навсегда?`)) return
-    setDeletingId(item.numericId)
-    try {
-      await deleteRoom(item.numericId)
-    } catch {
-      /* actionError in store */
-    } finally {
-      setDeletingId(null)
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const list = await api.personalWishlists()
+        if (!cancelled) setWishlists(list || [])
+      } catch {
+        if (!cancelled) setWishlists([])
+      }
+    })()
+    return () => {
+      cancelled = true
     }
-  }
+  }, [])
+
+  const active = [...rooms].sort((a, b) => {
+    if (a.id === room?.id) return -1
+    if (b.id === room?.id) return 1
+    return Number(b.numericId || 0) - Number(a.numericId || 0)
+  })
+  const archived = [...archivedRooms].sort((a, b) => Number(b.giftBy || 0) - Number(a.giftBy || 0))
+  const list = filter === 'active' ? active : archived
 
   return (
-    <>
-      <section className="page-intro">
-        <div className="blob blob-a" />
-        <p className="crumb">раздачи</p>
-        <div className="title-row">
-          <h1>Мои комнаты</h1>
-          <Hint text="Участник — комнаты, куда ты вошёл. Админ — те, что ты создал и ведёшь." />
-        </div>
-        <div className="role-tabs" role="tablist" aria-label="тип комнат">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={roleTab === 'member'}
-            className={roleTab === 'member' ? 'on' : ''}
-            onClick={() => setRoleTab('member')}
-          >
-            Участник
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={roleTab === 'admin'}
-            className={roleTab === 'admin' ? 'on' : ''}
-            onClick={() => setRoleTab('admin')}
-          >
-            Админ
-          </button>
+    <div className="home">
+      <section className="home-hero">
+        <div className="home-hero-row">
+          <div>
+            <h1>Обмен подарками без спойлеров</h1>
+            <p>Создавай комнату, собирай вишлисты и узнай своего получателя в день жеребьёвки — по цвету, без имени.</p>
+          </div>
+          <GiftMini size={72} />
         </div>
       </section>
-      <div className="room-list">
+
+      <section className="action-cards">
+        <button type="button" className="action-card create" onClick={() => go('/rooms/new')}>
+          <span className="action-arrow" aria-hidden="true">
+            →
+          </span>
+          <strong>Создать комнату</strong>
+          <span>Организуй свой обмен подарками.</span>
+          <span className="action-art">
+            <GiftMini size={56} />
+          </span>
+        </button>
+        <button type="button" className="action-card join" onClick={() => go('/find')}>
+          <span className="action-arrow" aria-hidden="true">
+            →
+          </span>
+          <strong>Присоединиться</strong>
+          <span>Введи код от друга и стань участником.</span>
+        </button>
+      </section>
+
+      <section>
+        <div className="section-head">
+          <h2>Мои комнаты</h2>
+          <div className="filter-chips">
+            <button type="button" className={filter === 'active' ? 'chip-r on' : 'chip-r'} onClick={() => setFilter('active')}>
+              Активные
+            </button>
+            <button
+              type="button"
+              className={filter === 'done' ? 'chip-r on' : 'chip-r'}
+              onClick={() => setFilter('done')}
+            >
+              Завершённые
+            </button>
+          </div>
+        </div>
         {list.length === 0 ? (
-          <p className="note empty-rooms">
-            {roleTab === 'admin'
-              ? 'Пока нет комнат, где ты админ. Создай через «+» внизу.'
-              : 'Пока нет комнат, куда ты вошёл. Найди публичную или войди по коду через «Найти».'}
+          <p className="empty-block">
+            {filter === 'active'
+              ? 'Пока нет комнат. Создай свою или войди по коду.'
+              : 'Архив пуст — завершённые комнаты появятся здесь.'}
           </p>
         ) : (
           list.map((item) => (
-            <RoomCard
+            <RoomCardR
               key={item.id}
               item={item}
-              room={room}
               now={now}
-              onOpen={() => focusRoom(item.id, '/room')}
-              onSettings={() => focusRoom(item.id, '/admin')}
+              onOpen={() => focusRoom(item.id, filter === 'done' ? '/room' : '/room')}
             />
           ))
         )}
-      </div>
-      {roleTab === 'admin' && archived.length > 0 && (
-        <section className="archive-block">
-          <div className="label">
-            <Squiggle />
-            <span>архив</span>
-          </div>
-          <p className="note">
-            Через 7 дней после даты «подарить до» комната переезжает сюда. Можно смотреть итог и удалить.
-          </p>
-          <div className="room-list archive-list">
-            {archived.map((item) => {
-              const theme = themeOf(item.theme)
-              return (
-                <article
-                  key={item.id}
-                  className="room-row archive-row"
-                  style={{ background: theme.soft || theme.band, color: theme.ink }}
-                >
-                  <div className="room-hit archive-hit">
-                    <p className="crumb">{theme.label} · архив</p>
-                    <h2>{item.title}</h2>
-                    <span className="band-more">
-                      {peopleCount(item.memberCount || 0)}
-                      {item.giftBy ? ` · до ${formatWhen(item.giftBy)}` : ''}
-                    </span>
-                  </div>
-                  {item.myRole === 'OWNER' && (
-                    <button
-                      className="text-btn"
-                      type="button"
-                      disabled={deletingId === item.numericId}
-                      onClick={() => onDeleteArchived(item)}
-                    >
-                      {deletingId === item.numericId ? 'Удаляю…' : 'Удалить'}
-                    </button>
-                  )}
-                </article>
-              )
-            })}
-          </div>
-          {actionError && <p className="err">{actionError}</p>}
-        </section>
-      )}
-    </>
+      </section>
+
+      <section>
+        <div className="section-head">
+          <h2>Мои вишлисты</h2>
+          <button className="icon-plus-sm" type="button" aria-label="создать вишлист" onClick={() => go('/cabinet')}>
+            +
+          </button>
+        </div>
+        {wishlists.length === 0 ? (
+          <p className="empty-block">Пока пусто — создай первый список</p>
+        ) : (
+          wishlists.slice(0, 6).map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className="wish-row"
+              onClick={() => go(`/cabinet/wishlists/${item.id}`)}
+            >
+              <div>
+                <strong>{item.title}</strong>
+                <span>{item.itemCount || 0} жел.</span>
+              </div>
+              <span className="chev" aria-hidden="true">
+                ›
+              </span>
+            </button>
+          ))
+        )}
+      </section>
+    </div>
   )
 }
 
 export function Find() {
   const { rooms, focusRoom, joinByCode, joinPublicRoom } = useStore()
+  const [tab, setTab] = useState('code')
   const [code, setCode] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [err, setErr] = useState('')
@@ -1140,6 +1226,7 @@ export function Find() {
   const myRoomIds = new Set(rooms.map((r) => String(r.numericId)))
 
   useEffect(() => {
+    if (tab !== 'public') return undefined
     let cancelled = false
     const timer = setTimeout(async () => {
       setPublicBusy(true)
@@ -1157,7 +1244,7 @@ export function Find() {
       cancelled = true
       clearTimeout(timer)
     }
-  }, [publicQ])
+  }, [publicQ, tab])
 
   async function applyDisplayName(roomId) {
     const name = displayName.trim()
@@ -1201,23 +1288,22 @@ export function Find() {
   }
 
   return (
-    <>
-      <section className="page-intro">
-        <div className="blob blob-a" />
-        <p className="crumb">поиск</p>
-        <div className="title-row">
-          <h1>Найти комнату</h1>
-          <Hint text="Публичные комнаты видны всем. Приватные — только по коду из приглашения." />
-        </div>
-      </section>
+    <div className="page-r">
+      <h1>Найти комнату</h1>
+      <p className="lead">Войди по коду из приглашения или выбери публичную комнату.</p>
 
-      <section className="sheet enter find-sheet">
-        <div className="label">
-          <Squiggle />
-          <span>войти по коду</span>
-        </div>
-        <form className="enter-form" onSubmit={submitCode}>
-          <label className="line">
+      <div className="seg" role="tablist">
+        <button type="button" role="tab" className={tab === 'code' ? 'on' : ''} onClick={() => setTab('code')}>
+          По коду
+        </button>
+        <button type="button" role="tab" className={tab === 'public' ? 'on' : ''} onClick={() => setTab('public')}>
+          Публичные
+        </button>
+      </div>
+
+      {tab === 'code' ? (
+        <form className="stack-form" onSubmit={submitCode}>
+          <label className="field-r">
             <span>код комнаты</span>
             <input
               value={code}
@@ -1226,77 +1312,83 @@ export function Find() {
               autoComplete="off"
             />
           </label>
-          <label className="line">
-            <span>как тебя показать в комнате</span>
+          <label className="field-r">
+            <span>имя в комнате</span>
             <input
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="имя для участников"
+              placeholder="как тебя увидят"
               maxLength={80}
             />
           </label>
           {err && <p className="err">{err}</p>}
-          <button className="fill" type="submit" disabled={busy}>
+          <button className="btn-primary" type="submit" disabled={busy}>
             {busy ? 'Вхожу…' : 'Войти'}
           </button>
         </form>
-      </section>
-
-      <section className="public-block">
-        <div className="label">
-          <Squiggle />
-          <span>публичные комнаты</span>
+      ) : (
+        <div className="stack-form">
+          <label className="field-r">
+            <span>поиск</span>
+            <input value={publicQ} onChange={(e) => setPublicQ(e.target.value)} placeholder="название…" />
+          </label>
+          <label className="field-r">
+            <span>имя в комнате</span>
+            <input
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder="как тебя увидят"
+              maxLength={80}
+            />
+          </label>
+          {publicBusy && <p className="demo-hint">Ищу…</p>}
+          {publicErr && <p className="err">{publicErr}</p>}
+          {!publicBusy && publicRooms.length === 0 && (
+            <p className="empty-block">Пока нет публичных комнат с открытой регистрацией.</p>
+          )}
+          <ul className="public-list">
+            {publicRooms.map((item) => {
+              const already = myRoomIds.has(String(item.id))
+              return (
+                <li key={item.id}>
+                  <div>
+                    <strong>{item.title}</strong>
+                    <span className="demo-hint">
+                      {peopleCount(item.memberCount || 0)} ·{' '}
+                      {item.secrecyMode === 'OPEN' ? 'нетайно' : 'тайно'}
+                      {item.budgetMax ? ` · до ${money(item.budgetMax, item.currency)}` : ''}
+                    </span>
+                  </div>
+                  {already ? (
+                    <button className="btn-secondary" type="button" onClick={() => focusRoom(String(item.id), '/room')}>
+                      Открыть
+                    </button>
+                  ) : (
+                    <button
+                      className="btn-primary"
+                      type="button"
+                      disabled={joiningId === item.id}
+                      onClick={() => onJoinPublic(item)}
+                    >
+                      {joiningId === item.id ? 'Вхожу…' : 'Войти'}
+                    </button>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
         </div>
-        <label className="line">
-          <span>поиск</span>
-          <input value={publicQ} onChange={(e) => setPublicQ(e.target.value)} placeholder="название…" />
-        </label>
-        {publicBusy && <p className="demo-hint">Ищу…</p>}
-        {publicErr && <p className="err">{publicErr}</p>}
-        {!publicBusy && publicRooms.length === 0 && (
-          <p className="note">Пока нет публичных комнат с открытой регистрацией.</p>
-        )}
-        <ul className="public-list">
-          {publicRooms.map((item) => {
-            const already = myRoomIds.has(String(item.id))
-            return (
-              <li key={item.id}>
-                <div>
-                  <strong>{item.title}</strong>
-                  <span className="demo-hint">
-                    {peopleCount(item.memberCount || 0)} ·{' '}
-                    {item.secrecyMode === 'OPEN' ? 'нетайно' : 'тайно'}
-                    {item.budgetMax ? ` · до ${money(item.budgetMax, item.currency)}` : ''}
-                  </span>
-                </div>
-                {already ? (
-                  <button className="text-btn" type="button" onClick={() => focusRoom(String(item.id), '/room')}>
-                    Открыть
-                  </button>
-                ) : (
-                  <button
-                    className="text-btn"
-                    type="button"
-                    disabled={joiningId === item.id}
-                    onClick={() => onJoinPublic(item)}
-                  >
-                    {joiningId === item.id ? 'Вхожу…' : 'Войти'}
-                  </button>
-                )}
-              </li>
-            )
-          })}
-        </ul>
-      </section>
-    </>
+      )}
+    </div>
   )
 }
 
 export function NewRoom() {
-  const { createRoom } = useStore()
-  const go = useGo()
+  const { createRoom, room, focusRoom } = useStore()
+  const [step, setStep] = useState(0)
+  const [ready, setReady] = useState(false)
   const [title, setTitle] = useState('')
-  const [theme, setTheme] = useState('newyear')
+  const [theme, setTheme] = useState('birthday')
   const [presence, setPresence] = useState('in')
   const [secrecyMode, setSecrecyMode] = useState('SECRET')
   const [visibility, setVisibility] = useState('PRIVATE')
@@ -1306,159 +1398,249 @@ export function NewRoom() {
   const [giftBy, setGiftBy] = useState(() => toInput(Date.now() + 24 * 86400000))
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
+  const [toast, setToast] = useState('')
   const cash = currencyOf(currency)
-  useTitle('новая комната')
+  const themeMeta = themeOf(theme)
+  useTitle('создание комнаты')
 
-  async function submit(event) {
-    event.preventDefault()
-    if (title.trim().length < 2) {
-      setErr('как назвать комнату?')
+  function validateStep() {
+    if (step === 0) {
+      if (title.trim().length < 2) return 'как назвать комнату?'
+    }
+    if (step === 3) {
+      const draw = fromInput(drawAt)
+      const gift = fromInput(giftBy)
+      if (!draw || !gift) return 'нужны обе даты'
+      if (gift <= draw) return 'подарок позже раздачи'
+    }
+    return ''
+  }
+
+  function next() {
+    const message = validateStep()
+    if (message) {
+      setErr(message)
       return
     }
-    const draw = fromInput(drawAt)
-    const gift = fromInput(giftBy)
-    if (!draw || !gift) {
-      setErr('нужны обе даты')
-      return
-    }
-    if (gift <= draw) {
-      setErr('подарок позже раздачи')
+    setErr('')
+    setStep((s) => Math.min(3, s + 1))
+  }
+
+  async function submit() {
+    const message = validateStep()
+    if (message) {
+      setErr(message)
       return
     }
     setBusy(true)
     setErr('')
     try {
-      await createRoom({
-        title: title.trim(),
-        theme,
-        presence,
-        secrecyMode,
-        visibility,
-        budget: readBudget(budget),
-        currency,
-        drawAt: draw,
-        giftBy: gift,
-      })
+      await createRoom(
+        {
+          title: title.trim(),
+          theme,
+          presence,
+          secrecyMode,
+          visibility,
+          budget: readBudget(budget),
+          currency,
+          drawAt: fromInput(drawAt),
+          giftBy: fromInput(giftBy),
+        },
+        { skipNavigate: true },
+      )
+      setReady(true)
     } catch (e) {
       setErr(e.message || 'не удалось создать')
+    } finally {
       setBusy(false)
     }
   }
 
-  return (
-    <section className="sheet">
-      <div className="blob blob-a" />
-      <div className="enter-copy">
-        <p className="crumb">Создание комнаты</p>
-        <h1>Новая</h1>
-        <p className="note">Срок, сумма и твоя роль в этой комнате. Минимум участников для раздачи — {MIN_PEOPLE}.</p>
-      </div>
-      <form className="stack-form" onSubmit={submit}>
-        <label className="line">
-          <span>название</span>
-          <input value={title} maxLength={42} onChange={(event) => setTitle(event.target.value)} placeholder="Офис, поток, кухня" />
-        </label>
-        <div className="label">
-          <Squiggle />
-          <span>твоя роль</span>
+  async function copyInvite() {
+    const invite = room?.inviteLink || (room?.code ? `Код комнаты Тайно: ${room.code}` : '')
+    if (!invite) return
+    try {
+      await navigator.clipboard.writeText(invite)
+      setToast('Ссылка скопирована')
+      setTimeout(() => setToast(''), 1800)
+    } catch {
+      setToast(invite)
+      setTimeout(() => setToast(''), 2400)
+    }
+  }
+
+  if (ready && room) {
+    return (
+      <div className="ready-screen">
+        <GiftMini size={88} />
+        <h1>Комната готова!</h1>
+        <p className="lead">Теперь пригласи друзей и собери вишлист.</p>
+        <div className="ready-card" style={{ background: themeMeta.band, color: themeMeta.ink }}>
+          <span className="crumb">{themeMeta.label}</span>
+          <strong style={{ fontSize: '1.25rem' }}>{room.title}</strong>
+          <div className="room-meta">
+            <span>{peopleCount(room.memberCount || 1)}</span>
+            {room.budget ? <span>{money(room.budget, room.currency)}</span> : null}
+          </div>
+          <span className="status-pill">До жеребьёвки {daysUntil(room.drawAt, Date.now())} дн.</span>
         </div>
-        <div className="presence">
-          {PRESENCE.map((item) => (
-            <div key={item.id} className={presence === item.id ? 'presence-row on' : 'presence-row'}>
-              <button type="button" className="presence-pick" onClick={() => setPresence(item.id)}>
-                <strong>{item.title}</strong>
-                <span>{item.note}</span>
-              </button>
-              <Hint text={item.tip} />
+        <button className="btn-primary" type="button" onClick={copyInvite}>
+          Пригласить в комнату
+        </button>
+        <button
+          className="btn-secondary"
+          type="button"
+          onClick={() => {
+            focusRoom(room.id, '/room')
+          }}
+        >
+          Составить вишлист
+        </button>
+        <div className="next-steps">
+          <h2>Что дальше?</h2>
+          <div className="next-step">
+            <div className="ico" style={{ background: 'var(--pink)' }}>
+              👥
             </div>
-          ))}
+            <div>
+              <strong>Дождись жеребьёвки</strong>
+              <span>Мы случайно распределим участников</span>
+            </div>
+          </div>
+          <div className="next-step">
+            <div className="ico" style={{ background: 'var(--lavender)' }}>
+              🎁
+            </div>
+            <div>
+              <strong>Подготовь подарок</strong>
+              <span>Ориентируйся на вишлист своего получателя</span>
+            </div>
+          </div>
         </div>
-        <div className="label space">
-          <Squiggle />
-          <span>
-            режим <Hint text="Тайно — только цвет и вишлист. Нетайно — даритель ещё видит заметку, WB и ссылку." />
-          </span>
-        </div>
-        <div className="presence">
-          <button type="button" className={secrecyMode === 'SECRET' ? 'on' : ''} onClick={() => setSecrecyMode('SECRET')}>
-            <strong>Тайно</strong>
-            <span>Цвет без имени, без контактов</span>
-          </button>
-          <button type="button" className={secrecyMode === 'OPEN' ? 'on' : ''} onClick={() => setSecrecyMode('OPEN')}>
-            <strong>Нетайно</strong>
-            <span>Заметка, WB и ссылка TG у участника</span>
-          </button>
-        </div>
-        <div className="label space">
-          <Squiggle />
-          <span>доступ</span>
-        </div>
-        <div className="presence">
-          <button type="button" className={visibility === 'PRIVATE' ? 'on' : ''} onClick={() => setVisibility('PRIVATE')}>
-            <strong>Приватная</strong>
-            <span>Только по коду или ссылке</span>
-          </button>
-          <button type="button" className={visibility === 'PUBLIC' ? 'on' : ''} onClick={() => setVisibility('PUBLIC')}>
-            <strong>Публичная</strong>
-            <span>Видна во вкладке «Найти»</span>
-          </button>
-        </div>
-        <div className="label space">
-          <Squiggle />
-          <span>тема</span>
-        </div>
-        <ThemePicker value={theme} onChange={setTheme} />
-        <p className="demo-hint">
-          {presence === 'out' ? 'Ты только ведёшь комнату и не участвуешь в раздаче.' : 'Ты участвуешь в раздаче.'}
-        </p>
-        <div className="label space">
-          <Squiggle />
-          <span>сумма подарка</span>
-        </div>
-        <div className="currency">
-          {CURRENCIES.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={currency === item.id ? 'on' : ''}
-              onClick={() => setCurrency(item.id)}
-            >
-              <b>{item.short}</b>
-              <span>{item.label}</span>
+        {toast && <div className="toast-r">{toast}</div>}
+      </div>
+    )
+  }
+
+  return (
+    <div className="wizard">
+      <div className="wizard-progress" aria-hidden="true">
+        {[0, 1, 2, 3].map((i) => (
+          <span key={i} className={i <= step ? 'on' : ''} />
+        ))}
+      </div>
+
+      {step === 0 && (
+        <>
+          <h1>Что празднуем?</h1>
+          <label className="field-r">
+            <span>название</span>
+            <input value={title} maxLength={42} onChange={(e) => setTitle(e.target.value)} placeholder="День рождения Кати" />
+          </label>
+          <p className="lead">Выбери тему — карточки комнаты подстроятся под повод.</p>
+          <ThemePicker value={theme} onChange={setTheme} />
+        </>
+      )}
+
+      {step === 1 && (
+        <>
+          <h1>Настройки комнаты</h1>
+          <p className="lead">Ты автоматически становишься организатором. Можно участвовать в раздаче или только вести комнату.</p>
+          <div className="presence">
+            <button type="button" className={visibility === 'PRIVATE' ? 'on' : ''} onClick={() => setVisibility('PRIVATE')}>
+              <strong>Приватная</strong>
+              <span>Только по коду или ссылке</span>
             </button>
-          ))}
-        </div>
-        <label className="line">
-          <span>число · {cash.short}</span>
-          <input
-            type="number"
-            min="0"
-            step="1"
-            inputMode="numeric"
-            value={budget}
-            onChange={(event) => setBudget(event.target.value)}
-          />
-        </label>
-        <p className="demo-hint">{money(budget, currency) || 'сумма не задана'}</p>
-        <div className="line">
-          <span>раздача</span>
-          <RuDateTimeInput value={drawAt} onChange={(event) => setDrawAt(event.target.value)} />
-        </div>
-        <div className="line">
-          <span>подарить до</span>
-          <RuDateTimeInput value={giftBy} onChange={(event) => setGiftBy(event.target.value)} />
-        </div>
-        {err && <p className="err">{err}</p>}
-        <div className="row-actions form-actions">
-          <button className="fill" type="submit" disabled={busy}>
+            <button type="button" className={visibility === 'PUBLIC' ? 'on' : ''} onClick={() => setVisibility('PUBLIC')}>
+              <strong>Публичная</strong>
+              <span>Видна во вкладке «Найти»</span>
+            </button>
+          </div>
+          <div className="presence">
+            <button type="button" className={secrecyMode === 'SECRET' ? 'on' : ''} onClick={() => setSecrecyMode('SECRET')}>
+              <strong>Тайно</strong>
+              <span>Только цвет и вишлист</span>
+            </button>
+            <button type="button" className={secrecyMode === 'OPEN' ? 'on' : ''} onClick={() => setSecrecyMode('OPEN')}>
+              <strong>Нетайно</strong>
+              <span>Ещё заметка, WB и ссылка</span>
+            </button>
+          </div>
+          <div className="presence">
+            {PRESENCE.filter((p) => p.id !== 'guest').map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className={presence === item.id ? 'on' : ''}
+                onClick={() => setPresence(item.id)}
+              >
+                <strong>{item.id === 'in' ? 'Участвую в раздаче' : 'Только организую'}</strong>
+                <span>{item.id === 'in' ? 'Составлю вишлист и получу чужой список' : 'Без своего вишлиста и пары'}</span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
+      {step === 2 && (
+        <>
+          <h1>Бюджет</h1>
+          <div className="currency">
+            {CURRENCIES.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className={currency === item.id ? 'on' : ''}
+                onClick={() => setCurrency(item.id)}
+              >
+                <b>{item.short}</b>
+                <span>{item.label}</span>
+              </button>
+            ))}
+          </div>
+          <label className="field-r">
+            <span>сумма · {cash.short}</span>
+            <input type="number" min="0" step="1" inputMode="numeric" value={budget} onChange={(e) => setBudget(e.target.value)} />
+          </label>
+          <p className="demo-hint">{money(budget, currency) || 'сумма не задана'}</p>
+        </>
+      )}
+
+      {step === 3 && (
+        <>
+          <h1>Даты</h1>
+          <div className="field-r">
+            <span>жеребьёвка</span>
+            <RuDateTimeInput value={drawAt} onChange={(e) => setDrawAt(e.target.value)} />
+          </div>
+          <div className="field-r">
+            <span>подарить до</span>
+            <RuDateTimeInput value={giftBy} onChange={(e) => setGiftBy(e.target.value)} />
+          </div>
+          <p className="demo-hint">Минимум участников для раздачи — {MIN_PEOPLE}.</p>
+        </>
+      )}
+
+      {err && <p className="err">{err}</p>}
+
+      <div className="room-actions">
+        {step < 3 ? (
+          <button className="btn-primary" type="button" onClick={next}>
+            Дальше
+          </button>
+        ) : (
+          <button className="btn-primary" type="button" disabled={busy} onClick={submit}>
             {busy ? 'Создаю…' : 'Создать комнату'}
           </button>
-          <button className="text-btn" type="button" onClick={() => go('/')}>
-            К комнатам
+        )}
+        {step > 0 && (
+          <button className="btn-secondary" type="button" onClick={() => setStep((s) => s - 1)}>
+            Назад
           </button>
-        </div>
-      </form>
-    </section>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -1536,34 +1718,27 @@ export function Admin() {
   }
 
   return (
-    <section className="sheet admin">
-      <Weather type={theme.particle} color={theme.ink} />
-      <div className="blob blob-a" />
-      <div className="admin-intro">
-        <p className="crumb">админ · {room.title}</p>
-        <h1>Настройки</h1>
-        <p className="note">
-          Пригласи друзей ссылкой, настрой срок и сумму. Участников и их вишлисты смотри отдельно.
-        </p>
-      </div>
+    <div className="page-r admin">
+      <h1>Настройки</h1>
+      <p className="lead">
+        {room.title} · код <b>{room.code}</b>. Пригласи друзей и настрой срок и сумму.
+      </p>
 
       <div className="invite-box">
         <div className="label">
           <Squiggle />
           <span>приглашение</span>
         </div>
-        <p className="note">
-          Ссылка сразу открывает Mini App в этой комнате. Код: <b>{room.code}</b>
-        </p>
+        <p className="note">Ссылка сразу открывает Mini App в этой комнате.</p>
         {!invite && (
           <p className="demo-hint">Задай TELEGRAM_BOT_USERNAME на сервере — пока копируется только код комнаты.</p>
         )}
-        <div className="row-actions">
-          <button className="fill" type="button" onClick={copyInvite}>
+        <div className="room-actions">
+          <button className="btn-primary" type="button" onClick={copyInvite}>
             {invite ? 'Скопировать ссылку' : 'Скопировать код'}
           </button>
           {isAdmin && (
-            <button className="text-btn" type="button" onClick={() => go('/colors')}>
+            <button className="btn-secondary" type="button" onClick={() => go('/colors')}>
               Участники и вишлисты
             </button>
           )}
@@ -1736,8 +1911,8 @@ export function Admin() {
           </label>
           <p className="demo-hint">{money(room.budget, room.currency) || 'сумма не задана'}</p>
           {isGlobalAdmin && (
-            <div className="row-actions">
-              <button className="fill" type="button" disabled={drawBusy} onClick={onDraw}>
+            <div className="room-actions">
+              <button className="btn-primary" type="button" disabled={drawBusy} onClick={onDraw}>
                 {drawBusy ? 'Разыгрываю…' : isRevealed ? 'Перерозыгрыш' : 'Разыграть сейчас'}
               </button>
             </div>
@@ -1756,12 +1931,12 @@ export function Admin() {
             Комната исчезнет у всех. После даты подарков она ещё неделю живёт в активных, потом уходит в архив —
             оттуда тоже можно удалить.
           </p>
-          <button className="text-btn danger-btn" type="button" disabled={deleteBusy} onClick={onDeleteRoom}>
+          <button className="btn-secondary danger-btn" type="button" disabled={deleteBusy} onClick={onDeleteRoom}>
             {deleteBusy ? 'Удаляю…' : 'Удалить комнату'}
           </button>
         </div>
       )}
-    </section>
+    </div>
   )
 }
 
@@ -1772,61 +1947,17 @@ export function Enter() {
 export function Cabinet() {
   const { data } = useStore()
   const go = useGo()
-  const [lists, setLists] = useState([])
-  const [previews, setPreviews] = useState({})
-  const [expandedId, setExpandedId] = useState(null)
   const [creating, setCreating] = useState(false)
   const [newTitle, setNewTitle] = useState('')
-  const [hint, setHint] = useState('')
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
   useTitle('профиль')
 
   const displayName = data.user?.firstName || data.user?.username || 'ты'
-
-  async function refreshLists() {
-    const list = await api.personalWishlists()
-    setLists(list || [])
-    return list
-  }
-
-  useEffect(() => {
-    if (!data.user) return undefined
-    let cancelled = false
-    ;(async () => {
-      try {
-        const list = await api.personalWishlists()
-        if (!cancelled) setLists(list || [])
-      } catch (e) {
-        if (!cancelled) setErr(e.message || 'Не удалось загрузить вишлисты')
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [data.user])
+  const photo = data.user?.photoUrl
+  const initial = (displayName || '?').trim().slice(0, 1).toUpperCase()
 
   if (!data.user) return <Navigate to="/find" replace />
-
-  async function toggleList(id) {
-    setHint('')
-    setErr('')
-    if (expandedId === id) {
-      setExpandedId(null)
-      return
-    }
-    setExpandedId(id)
-    if (previews[id]) return
-    setBusy(true)
-    try {
-      const d = await api.personalWishlist(id)
-      setPreviews((prev) => ({ ...prev, [id]: d.items || [] }))
-    } catch (e) {
-      setErr(e.message || 'не удалось открыть')
-    } finally {
-      setBusy(false)
-    }
-  }
 
   async function createList(event) {
     event.preventDefault()
@@ -1840,8 +1971,6 @@ export function Cabinet() {
       const created = await api.createPersonalWishlist({ title: newTitle.trim() })
       setNewTitle('')
       setCreating(false)
-      await refreshLists()
-      setHint('Вишлист создан')
       go(`/cabinet/wishlists/${created.id}`)
     } catch (e) {
       setErr(e.message || 'не удалось создать')
@@ -1850,101 +1979,85 @@ export function Cabinet() {
     }
   }
 
+  function replayOnboarding() {
+    openOnboardingAgain()
+    window.dispatchEvent(new Event('taino:onboarding'))
+  }
+
   return (
-    <section className="sheet cabinet cab-spaced">
-      <div className="cab-head">
-        <div>
-          <p className="crumb">профиль</p>
-          <h1>{displayName}</h1>
-          <p className="note">{data.user.username ? `@${data.user.username}` : 'без username'}</p>
+    <div className="page-r">
+      <div className="profile-head">
+        <div className="profile-avatar">
+          {photo ? <img src={photo} alt="" /> : <span style={{ fontSize: 36, fontWeight: 800 }}>{initial}</span>}
         </div>
+        <h2>{displayName}</h2>
+        <p className="handle">{data.user.username ? `@${data.user.username}` : 'без username'}</p>
       </div>
 
-      <div className="cab-block">
-        <div className="label">
-          <Squiggle />
-          <span>мои вишлисты</span>
-          <Hint text="Списки свёрнуты. Плюс раскрывает до трёх позиций. Полный список — «Открыть вишлист»." />
-        </div>
-        {!creating ? (
-          <button className="fill" type="button" onClick={() => setCreating(true)}>
-            Новый вишлист
+      <button type="button" className="menu-card" onClick={replayOnboarding}>
+        <span className="menu-ico" style={{ background: 'var(--pink)' }}>
+          ?
+        </span>
+        <span>
+          <strong>Как работает ТАЙНО</strong>
+          <span>Короткий онбординг</span>
+        </span>
+        <span className="chev" aria-hidden="true">
+          ›
+        </span>
+      </button>
+
+      <button type="button" className="menu-card" onClick={() => go('/legal')}>
+        <span className="menu-ico" style={{ background: 'var(--lavender)' }}>
+          i
+        </span>
+        <span>
+          <strong>О сервисе</strong>
+          <span>Правила, privacy, terms</span>
+        </span>
+        <span className="chev" aria-hidden="true">
+          ›
+        </span>
+      </button>
+
+      <button type="button" className="menu-card" onClick={() => go('/')}>
+        <span className="menu-ico" style={{ background: 'var(--mint)' }}>
+          ♡
+        </span>
+        <span>
+          <strong>Мои вишлисты</strong>
+          <span>Списки на главной · создать новый ниже</span>
+        </span>
+        <span className="chev" aria-hidden="true">
+          ›
+        </span>
+      </button>
+
+      {!creating ? (
+        <button className="btn-secondary" type="button" onClick={() => setCreating(true)}>
+          Новый вишлист
+        </button>
+      ) : (
+        <form className="stack-form" onSubmit={createList}>
+          <label className="field-r">
+            <span>название</span>
+            <input
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+              placeholder="День рождения, Новый год…"
+              autoFocus
+            />
+          </label>
+          {err && <p className="err">{err}</p>}
+          <button className="btn-primary" type="submit" disabled={busy}>
+            {busy ? 'Создаю…' : 'Создать'}
           </button>
-        ) : (
-          <form className="stack-form cab-create" onSubmit={createList}>
-            <label className="line">
-              <span>название</span>
-              <input
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
-                placeholder="День рождения, Новый год…"
-                autoFocus
-              />
-            </label>
-            <div className="row-actions">
-              <button className="fill" type="submit" disabled={busy}>
-                {busy ? 'Создаю…' : 'Создать'}
-              </button>
-              <button className="text-btn" type="button" onClick={() => setCreating(false)}>
-                Отмена
-              </button>
-            </div>
-          </form>
-        )}
-      </div>
-
-      <div className="wish-accordion">
-        {lists.length === 0 ? (
-          <p className="note">Пока пусто — создай первый список.</p>
-        ) : (
-          lists.map((item) => {
-            const open = expandedId === item.id
-            const items = previews[item.id] || []
-            const preview = items.slice(0, 3)
-            return (
-              <article key={item.id} className={open ? 'wish-card open' : 'wish-card'}>
-                <button className="wish-card-head" type="button" onClick={() => toggleList(item.id)}>
-                  <span>
-                    <strong>{item.title}</strong>
-                    <em>{item.itemCount || 0} жел.</em>
-                  </span>
-                  <span className="wish-chevron" aria-hidden="true">
-                    {open ? '−' : '+'}
-                  </span>
-                </button>
-                {open && (
-                  <div className="wish-card-body">
-                    {busy && !previews[item.id] ? (
-                      <p className="note">Загрузка…</p>
-                    ) : (
-                      <>
-                        {preview.length > 0 && (
-                          <ul className="wish-preview">
-                            {preview.map((gift) => (
-                              <li key={gift.id}>{gift.title}</li>
-                            ))}
-                          </ul>
-                        )}
-                        <button
-                          className="fill"
-                          type="button"
-                          onClick={() => go(`/cabinet/wishlists/${item.id}`)}
-                        >
-                          Открыть вишлист
-                        </button>
-                      </>
-                    )}
-                  </div>
-                )}
-              </article>
-            )
-          })
-        )}
-      </div>
-
-      {hint && <p className="demo-hint">{hint}</p>}
-      {err && <p className="err">{err}</p>}
-    </section>
+          <button className="btn-secondary" type="button" onClick={() => setCreating(false)}>
+            Отмена
+          </button>
+        </form>
+      )}
+    </div>
   )
 }
 

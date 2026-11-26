@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { mediaUrl } from './api'
 import { MIN_PEOPLE, THEMES, peopleCount, themeToken } from './data'
 import { useGo, useStore } from './store'
@@ -296,169 +296,145 @@ export function Hint({ text }) {
   )
 }
 
+function IconBack() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path d="M12.5 4.5 7 10l5.5 5.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function GiftMini({ size = 56 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden="true">
+      <rect x="14" y="28" width="36" height="26" rx="4" fill="#FBCDDD" />
+      <rect x="12" y="22" width="40" height="10" rx="3" fill="#E5A0B8" />
+      <rect x="29" y="22" width="6" height="32" fill="#32131D" opacity="0.85" />
+      <path d="M32 22c-6-8-14-6-14 0 0 4 6 6 14 8 8-2 14-4 14-8 0-6-8-8-14 0Z" fill="#DC6487" />
+    </svg>
+  )
+}
+
 export function Header() {
-  const { data, room, isRevealed } = useStore()
+  const { data, room } = useStore()
   const go = useGo()
   const location = useLocation()
-  const [open, setOpen] = useState(false)
+  const navigate = useNavigate()
   const user = data.user
   const token = themeToken(room?.theme)
+  const path = location.pathname
 
-  useEffect(() => {
-    document.body.style.overflow = open ? 'hidden' : ''
-    return () => {
-      document.body.style.overflow = ''
-    }
-  }, [open])
+  const nested =
+    path === '/room' ||
+    path === '/admin' ||
+    path === '/colors' ||
+    path === '/rooms/new' ||
+    path.startsWith('/cabinet') ||
+    path.startsWith('/shared') ||
+    path.startsWith('/legal') ||
+    path === '/rules'
 
-  useEffect(() => {
-    const onKey = (event) => {
-      if (event.key === 'Escape') setOpen(false)
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [])
+  const topTitle =
+    path === '/room'
+      ? 'Комната'
+      : path === '/rooms/new'
+        ? 'Создание'
+        : path === '/find'
+          ? 'Найти'
+          : path === '/cabinet' || path.startsWith('/cabinet/')
+            ? 'Профиль'
+            : path === '/admin'
+              ? 'Настройки'
+              : path === '/colors'
+                ? 'Участники'
+                : ''
 
   function travel(to) {
-    setOpen(false)
     go(to, token)
   }
 
-  function onAccount() {
-    setOpen(false)
-    travel(user ? '/cabinet' : '/enter')
-  }
-
-  const path = location.pathname
-  const tabs = [
-    {
-      id: 'rooms',
-      to: '/',
-      label: 'Мои комнаты',
-      icon: IconHome,
-      match: path === '/',
-    },
-    room
-      ? {
-          id: 'room',
-          to: '/room',
-          label: 'Комната',
-          icon: IconDoor,
-          match: path === '/room' || path === '/admin' || path === '/colors',
-        }
-      : null,
-    {
-      id: 'create',
-      to: '/rooms/new',
-      label: 'Создать',
-      icon: IconPlus,
-      match: path === '/rooms/new',
-    },
-    {
-      id: 'find',
-      to: '/find',
-      label: 'Найти',
-      icon: IconSearch,
-      match: path === '/find' || path === '/enter',
-    },
-    {
-      id: 'profile',
-      to: user ? '/cabinet' : '/find',
-      label: 'Профиль',
-      icon: IconProfile,
-      match: path === '/cabinet' || path.startsWith('/cabinet/') || path.startsWith('/shared'),
-    },
-  ].filter(Boolean)
+  const homeOn = path === '/'
+  const createOn = path === '/rooms/new'
+  const findOn = path === '/find' || path === '/enter'
 
   return (
     <>
-      <Lines />
-      <header className="top top-simple">
-        <button className="circle menu-btn" type="button" aria-label={open ? 'закрыть меню' : 'меню'} aria-expanded={open} onClick={() => setOpen((value) => !value)}>
-          <Burger open={open} />
+      <header className="top-redesign">
+        {nested ? (
+          <button className="back-chip" type="button" aria-label="назад" onClick={() => navigate(-1)}>
+            <IconBack />
+          </button>
+        ) : (
+          <button className="brand-logo" type="button" onClick={() => travel('/')}>
+            ТАЙНО<span className="dot">.</span>
+          </button>
+        )}
+        {nested && topTitle ? <div className="top-title">{topTitle}</div> : <span style={{ flex: 1 }} />}
+        <button
+          className="avatar-btn"
+          type="button"
+          aria-label="профиль"
+          onClick={() => travel(user ? '/cabinet' : '/find')}
+        >
+          <IconProfile active />
         </button>
-        <button className="brand blend" type="button" onClick={() => travel('/')}>
-          <span className="brand-name">ТАЙНО</span>
-          <span className="brand-rule" />
-          <span className="brand-sub">
-            без
-            <br />
-            имён
-          </span>
-        </button>
-        <span className="top-spacer" aria-hidden="true" />
       </header>
-      {open && (
-        <nav className="menu">
-          <div className="blob blob-menu" />
-          <div className="menu-links">
-            <button type="button" className="menu-link" onClick={() => travel('/')}>
-              Мои комнаты
-            </button>
-            {room && (
-              <button type="button" className="menu-link" onClick={() => travel('/room')}>
-                Комната
-              </button>
-            )}
-            <button type="button" className="menu-link" onClick={() => travel('/rooms/new')}>
-              Создать комнату
-            </button>
-            <button type="button" className="menu-link" onClick={() => travel('/find')}>
-              Найти
-            </button>
-            <button type="button" className="menu-link" onClick={onAccount}>
-              Профиль
-            </button>
-            <button type="button" className="menu-link" onClick={() => travel('/legal')}>
-              О сервисе
-            </button>
-          </div>
-          <div className="menu-foot">
-            <span>{room ? `${room.title} · ${isRevealed ? 'список открыт' : 'скоро'}` : 'выбери комнату'}</span>
-          </div>
-        </nav>
-      )}
-      {!open && (
-        <nav className="tabbar" aria-label="основная навигация">
-          {tabs.map((tab) => {
-            const Icon = tab.icon
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                className={tab.match ? 'tab on' : 'tab'}
-                aria-current={tab.match ? 'page' : undefined}
-                onClick={() => travel(tab.to)}
-              >
-                <Icon active={tab.match} />
-                <span>{tab.label}</span>
-              </button>
-            )
-          })}
-        </nav>
-      )}
+
+      <nav className="tabbar-redesign" aria-label="основная навигация">
+        <button
+          type="button"
+          className={homeOn ? 'tab-r on' : 'tab-r'}
+          aria-current={homeOn ? 'page' : undefined}
+          onClick={() => travel('/')}
+        >
+          <IconHome active={homeOn} />
+          <span>Главная</span>
+        </button>
+        <button
+          type="button"
+          className={createOn ? 'tab-r create on' : 'tab-r create'}
+          aria-current={createOn ? 'page' : undefined}
+          onClick={() => travel('/rooms/new')}
+        >
+          <span className="create-fab" aria-hidden="true">
+            <IconPlus active />
+          </span>
+          <span>Создать</span>
+        </button>
+        <button
+          type="button"
+          className={findOn ? 'tab-r on' : 'tab-r'}
+          aria-current={findOn ? 'page' : undefined}
+          onClick={() => travel('/find')}
+        >
+          <IconSearch active={findOn} />
+          <span>Найти</span>
+        </button>
+      </nav>
     </>
   )
 }
 
+export { GiftMini }
+
 export function ThemePicker({ value, onChange }) {
   return (
-    <div className="themes" role="listbox" aria-label="тема комнаты">
+    <div className="theme-grid" role="listbox" aria-label="тема комнаты">
       {Object.values(THEMES).map((theme) => (
         <button
           key={theme.id}
           type="button"
           role="option"
           aria-selected={value === theme.id}
-          className={value === theme.id ? 'theme-card on' : 'theme-card'}
+          className={value === theme.id ? 'theme-pick on' : 'theme-pick'}
           style={{ background: theme.band, color: theme.ink }}
           onClick={() => onChange(theme.id)}
         >
-          <Weather type={theme.particle} color={theme.ink} count={8} />
-          <span className="theme-copy">
-            <span className="crumb">{theme.particleLabel}</span>
-            <strong>{theme.label}</strong>
+          <span className="check" aria-hidden="true">
+            ✓
           </span>
+          <Weather type={theme.particle} color={theme.ink} count={6} />
+          <strong>{theme.label}</strong>
         </button>
       ))}
     </div>
