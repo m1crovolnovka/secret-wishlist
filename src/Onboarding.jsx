@@ -1,86 +1,62 @@
 import { useEffect, useRef, useState } from 'react'
 
-const STORAGE_KEY = 'taino-onboarding-v2'
+const STORAGE_KEY = 'taino-onboarding-v3'
 
 const STEPS = [
   {
-    title: 'Что такое Тайно',
+    title: 'Обмен подарками без спойлеров',
     text:
-      'Это мини-приложение для тайной раздачи подарков. Друзья собираются в комнате, каждый пишет, что хочет получить. После жеребьёвки тебе выпадает чужой вишлист — без имени, только цвет. Ты даришь — и никто ничего не знает до окончания события.',
-    art: 'idea',
+      'Собери друзей в комнате — создай свою или войди по коду. Плюс внизу создаёт комнату, лупа находит. Имя получателя останется секретом.',
+    art: 'cards',
   },
   {
-    title: 'Комнаты и роли',
-    text:
-      'Комната — одна раздача: свои даты, бюджет и список участников. В «Мои комнаты» вкладка «Участник» — куда ты вошёл; «Админ» — комнаты, которые ты создал и ведёшь. Админ может сам участвовать, только организовывать или участвовать «вслепую» без доступа к чужим спискам.',
-    art: 'rooms',
-  },
-  {
-    title: 'Создать и найти',
-    text:
-      'Плюс внизу — создать новую комнату. Лупа — найти публичную или войти по коду из приглашения. При входе можно сразу указать, как тебя показывать участникам.',
-    art: 'nav',
-  },
-  {
-    title: 'Вишлисты',
-    text:
-      'В профиле собирай личные списки желаний (как блокнот): название, позиции со ссылкой, фото или артикулом. Список можно прикрепить к комнате или поделиться ссылкой. Один и тот же вишлист в нескольких комнатах: дарители могут отмечать «подарю», а владелец списка этих отметок не видит.',
+    title: 'Составь список желаний',
+    text: 'Добавь подарки со ссылками и фото. Один вишлист можно использовать в разных комнатах.',
     art: 'wish',
   },
   {
-    title: 'Жеребьёвка и тайна',
-    text:
-      'Пока регистрация открыта — заполняй вишлист. После раздачи открывается один чужой список. Режим «Тайно» — только цвет и желания. «Нетайно» — ещё заметка, пункт WB и ссылка для связи, но имя по-прежнему не показывается. Подари до указанной даты — и никто ничего не знает до окончания события.',
-    art: 'draw',
+    title: 'Получи тайную цветовую карточку',
+    text: 'После жеребьёвки откроется цвет получателя и его вишлист — без имени. У каждого секрета свой цвет.',
+    art: 'color',
   },
 ]
 
 function StepArt({ kind }) {
-  if (kind === 'idea') {
+  if (kind === 'cards') {
     return (
-      <svg className="onboard-art" viewBox="0 0 160 72" aria-hidden="true">
-        <circle cx="80" cy="34" r="22" fill="currentColor" opacity="0.12" />
-        <circle cx="54" cy="38" r="14" fill="currentColor" opacity="0.2" />
-        <circle cx="106" cy="38" r="14" fill="currentColor" opacity="0.28" />
-        <path d="M68 38h24" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" opacity="0.55" />
+      <svg className="onboard-art" viewBox="0 0 180 80" aria-hidden="true">
+        <rect x="28" y="18" width="40" height="52" rx="8" fill="#FBCDDD" transform="rotate(-8 48 44)" />
+        <rect x="70" y="12" width="40" height="52" rx="8" fill="#E5D7F6" />
+        <rect x="112" y="18" width="40" height="52" rx="8" fill="#D3E3EE" transform="rotate(8 132 44)" />
+        <rect x="60" y="36" width="60" height="10" rx="3" fill="#DC6487" opacity="0.85" />
       </svg>
     )
   }
-  if (kind === 'rooms') {
+  if (kind === 'room') {
     return (
-      <svg className="onboard-art" viewBox="0 0 160 72" aria-hidden="true">
-        <rect x="14" y="14" width="58" height="44" rx="8" fill="currentColor" opacity="0.16" />
-        <rect x="88" y="14" width="58" height="44" rx="8" fill="currentColor" opacity="0.26" />
-        <circle cx="43" cy="32" r="7" fill="currentColor" opacity="0.45" />
-        <circle cx="117" cy="32" r="7" fill="currentColor" opacity="0.55" />
-      </svg>
-    )
-  }
-  if (kind === 'nav') {
-    return (
-      <svg className="onboard-art" viewBox="0 0 160 72" aria-hidden="true">
-        <rect x="22" y="46" width="116" height="16" rx="8" fill="currentColor" opacity="0.14" />
-        <path d="M58 50v8M54 54h8" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" opacity="0.7" />
-        <circle cx="104" cy="54" r="4.5" fill="none" stroke="currentColor" strokeWidth="2" opacity="0.7" />
-        <path d="M107 57l3.5 3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" opacity="0.7" />
+      <svg className="onboard-art" viewBox="0 0 180 80" aria-hidden="true">
+        <rect x="24" y="20" width="60" height="44" rx="12" fill="#FBCDDD" />
+        <rect x="96" y="20" width="60" height="44" rx="12" fill="#E5D7F6" />
+        <circle cx="54" cy="42" r="8" fill="#32131D" opacity="0.2" />
+        <circle cx="126" cy="42" r="8" fill="#32131D" opacity="0.2" />
       </svg>
     )
   }
   if (kind === 'wish') {
     return (
-      <svg className="onboard-art" viewBox="0 0 160 72" aria-hidden="true">
-        <rect x="40" y="8" width="80" height="56" rx="6" fill="currentColor" opacity="0.12" />
-        <rect x="52" y="20" width="56" height="7" rx="2" fill="currentColor" opacity="0.35" />
-        <rect x="52" y="34" width="46" height="5" rx="2" fill="currentColor" opacity="0.22" />
-        <rect x="52" y="44" width="40" height="5" rx="2" fill="currentColor" opacity="0.22" />
+      <svg className="onboard-art" viewBox="0 0 180 80" aria-hidden="true">
+        <rect x="50" y="10" width="80" height="58" rx="10" fill="#FFE8AE" />
+        <rect x="64" y="24" width="52" height="6" rx="2" fill="#32131D" opacity="0.35" />
+        <rect x="64" y="36" width="40" height="5" rx="2" fill="#32131D" opacity="0.22" />
+        <rect x="64" y="46" width="46" height="5" rx="2" fill="#32131D" opacity="0.22" />
       </svg>
     )
   }
   return (
-    <svg className="onboard-art" viewBox="0 0 160 72" aria-hidden="true">
-      <circle cx="52" cy="36" r="18" fill="currentColor" opacity="0.16" />
-      <circle cx="108" cy="36" r="18" fill="currentColor" opacity="0.28" />
-      <path d="M70 36h20" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" opacity="0.5" />
+    <svg className="onboard-art" viewBox="0 0 180 80" aria-hidden="true">
+      <rect x="62" y="10" width="56" height="60" rx="12" fill="#E5D7F6" />
+      <rect x="70" y="36" width="40" height="10" rx="3" fill="#DC6487" />
+      <circle cx="90" cy="28" r="8" fill="#FBCDDD" />
     </svg>
   )
 }
@@ -93,10 +69,18 @@ export function shouldShowOnboarding() {
   }
 }
 
+export function openOnboardingAgain() {
+  try {
+    localStorage.removeItem(STORAGE_KEY)
+  } catch {
+    /* ignore */
+  }
+}
+
 export function Onboarding({ onDone }) {
   const [step, setStep] = useState(0)
   const [dontShow, setDontShow] = useState(false)
-  const touchRef = useRef({ x: 0, y: 0, active: false })
+  const touchRef = useRef({ x: 0, y: 0, active: false, pointer: false })
   const current = STEPS[step]
   const last = step === STEPS.length - 1
   const first = step === 0
@@ -161,7 +145,7 @@ export function Onboarding({ onDone }) {
   }
 
   return (
-    <div className="onboard-backdrop" role="dialog" aria-modal="true" aria-labelledby="onboard-title">
+    <div className="onboard-backdrop onboard-v3" role="dialog" aria-modal="true" aria-labelledby="onboard-title">
       <div
         className="onboard-card"
         onTouchStart={onTouchStart}
@@ -172,13 +156,15 @@ export function Onboarding({ onDone }) {
           touchRef.current.active = false
         }}
       >
+        <button className="onboard-close" type="button" aria-label="закрыть" onClick={finish}>
+          ×
+        </button>
         <StepArt kind={current.art} />
         <p className="crumb">
           шаг {step + 1} из {STEPS.length}
         </p>
         <h2 id="onboard-title">{current.title}</h2>
         <p className="note">{current.text}</p>
-        <p className="onboard-swipe-hint">можно свайпнуть влево или вправо</p>
         <div className="onboard-dots" aria-hidden="true">
           {STEPS.map((_, i) => (
             <span key={i} className={i === step ? 'on' : ''} />
@@ -194,17 +180,8 @@ export function Onboarding({ onDone }) {
               Назад
             </button>
           )}
-          {last ? (
-            <button className="fill" type="button" onClick={finish}>
-              Понятно
-            </button>
-          ) : (
-            <button className="fill" type="button" onClick={goNext}>
-              Дальше
-            </button>
-          )}
-          <button className="text-btn" type="button" onClick={finish}>
-            Закрыть
+          <button className="btn-primary" type="button" onClick={goNext} style={{ width: 'auto', minWidth: 120 }}>
+            {last ? 'Понятно' : 'Дальше'}
           </button>
         </div>
       </div>

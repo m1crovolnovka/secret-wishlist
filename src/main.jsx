@@ -4,6 +4,9 @@ import App from './App'
 import { ErrorBoundary } from './ErrorBoundary'
 import { StoreProvider } from './store'
 import './styles.css'
+import './design.css'
+
+document.body.classList.add('redesign')
 
 createRoot(document.getElementById('root')).render(
   <BrowserRouter>
