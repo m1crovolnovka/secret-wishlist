@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Navigate, useParams } from 'react-router-dom'
 import {
   Collection,
@@ -31,7 +32,7 @@ import { api } from './api'
 import { compressImageFile } from './imageCompress'
 import { openOnboardingAgain } from './Onboarding'
 import { useGo, useStore } from './store'
-import { haptic } from './telegram'
+import { getTelegramPhotoUrl, haptic } from './telegram'
 
 function RuDateTimeInput({ value, onChange }) {
   const inputRef = useRef(null)
@@ -1568,15 +1569,15 @@ export function NewRoom() {
             </button>
           </div>
           <div className="presence">
-            {PRESENCE.filter((p) => p.id !== 'guest').map((item) => (
+            {PRESENCE.map((item) => (
               <button
                 key={item.id}
                 type="button"
                 className={presence === item.id ? 'on' : ''}
                 onClick={() => setPresence(item.id)}
               >
-                <strong>{item.id === 'in' ? 'Участвую в раздаче' : 'Только организую'}</strong>
-                <span>{item.id === 'in' ? 'Составлю вишлист и получу чужой список' : 'Без своего вишлиста и пары'}</span>
+                <strong>{item.title}</strong>
+                <span>{item.note}</span>
               </button>
             ))}
           </div>
@@ -1777,10 +1778,10 @@ export function Admin() {
             </div>
             <p className="note">
               {guest
-                ? 'Участники видят обычную комнату. Ты в раздаче, но без доступа к чужим вишлистам и вкладке «Люди».'
+                ? 'Ты в раздаче как участник, но без админ-панели: вкладка «Люди» и чужие вишлисты скрыты до жеребьёвки.'
                 : room.presence === 'out'
-                  ? 'Участники видят комнату без тебя в жеребьёвке. Ты только ведёшь: приглашения, даты, розыгрыш.'
-                  : 'Участники видят тебя как ещё одного человека в раздаче. У тебя дополнительно настройки и список людей.'}
+                  ? 'Ты только организатор: приглашения, даты, розыгрыш. В жеребьёвке тебя нет.'
+                  : 'Ты организатор в раздаче: настройки, список людей и своя пара после жеребьёвки.'}
             </p>
             <p className="note">
               {(room.secrecyMode || 'SECRET') === 'SECRET'
@@ -1954,7 +1955,7 @@ export function Cabinet() {
   useTitle('профиль')
 
   const displayName = data.user?.firstName || data.user?.username || 'ты'
-  const photo = data.user?.photoUrl
+  const photo = data.user?.photoUrl || getTelegramPhotoUrl()
   const initial = (displayName || '?').trim().slice(0, 1).toUpperCase()
 
   if (!data.user) return <Navigate to="/find" replace />
@@ -2108,6 +2109,12 @@ export function WishlistNotebook() {
     }
   }, [id])
 
+  useEffect(() => {
+    if (!itemModal) return undefined
+    document.body.classList.add('modal-open')
+    return () => document.body.classList.remove('modal-open')
+  }, [itemModal])
+
   async function saveTitle() {
     if (!titleDraft.trim()) {
       setErr('нужно название')
@@ -2251,69 +2258,70 @@ export function WishlistNotebook() {
   }
 
   return (
-    <section className="sheet cabinet notebook">
-      <div className="notebook-head">
-        <button className="text-btn" type="button" onClick={() => go('/cabinet')}>
+    <div className="page-r notebook-r">
+      <div className="notebook-toolbar">
+        <button className="btn-secondary narrow" type="button" onClick={() => go('/')}>
           ← Назад
         </button>
-        <button className="text-btn danger-btn" type="button" onClick={removeList}>
+        <button className="btn-secondary narrow danger-btn" type="button" onClick={removeList}>
           Удалить список
         </button>
       </div>
 
-      <div className="notebook-head">
-        {editingTitle ? (
-          <div className="stack-form" style={{ flex: 1 }}>
-            <label className="line">
-              <span>название вишлиста</span>
-              <input value={titleDraft} onChange={(e) => setTitleDraft(e.target.value)} autoFocus />
-            </label>
-            <div className="row-actions">
-              <button className="fill" type="button" disabled={busy} onClick={saveTitle}>
-                Сохранить
-              </button>
-              <button className="text-btn" type="button" onClick={() => setEditingTitle(false)}>
-                Отмена
-              </button>
-            </div>
-          </div>
-        ) : (
-          <>
-            <h1>{detail.title}</h1>
-            <button
-              className="pencil-btn"
-              type="button"
-              aria-label="переименовать"
-              onClick={() => {
-                setTitleDraft(detail.title)
-                setEditingTitle(true)
-              }}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path
-                  d="M4 20h4l10.5-10.5a2.1 2.1 0 0 0-3-3L5 17v3zM13.5 6.5l3 3"
-                  stroke="currentColor"
-                  strokeWidth="1.6"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </button>
-          </>
-        )}
-      </div>
+      {editingTitle ? (
+        <form
+          className="stack-form"
+          onSubmit={(e) => {
+            e.preventDefault()
+            saveTitle()
+          }}
+        >
+          <label className="field-r">
+            <span>название вишлиста</span>
+            <input value={titleDraft} onChange={(e) => setTitleDraft(e.target.value)} autoFocus />
+          </label>
+          <button className="btn-primary" type="submit" disabled={busy}>
+            Сохранить
+          </button>
+          <button className="btn-secondary" type="button" onClick={() => setEditingTitle(false)}>
+            Отмена
+          </button>
+        </form>
+      ) : (
+        <div className="notebook-title-row">
+          <h1>{detail.title}</h1>
+          <button
+            className="pencil-btn"
+            type="button"
+            aria-label="переименовать"
+            onClick={() => {
+              setTitleDraft(detail.title)
+              setEditingTitle(true)
+            }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M4 20h4l10.5-10.5a2.1 2.1 0 0 0-3-3L5 17v3zM13.5 6.5l3 3"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+        </div>
+      )}
 
-      <button className="fill" type="button" onClick={openAdd}>
-        Добавить в вишлист
-      </button>
-
-      <div className="row-actions" style={{ marginTop: 12 }}>
-        <button className="text-btn" type="button" onClick={openShare}>
+      <div className="room-actions">
+        <button className="btn-primary" type="button" onClick={openAdd}>
+          Добавить в вишлист
+        </button>
+        <button className="btn-secondary" type="button" onClick={openShare}>
           Поделиться списком
         </button>
         {room?.numericId && room.canEdit && (
           <button
-            className="text-btn"
+            className="btn-secondary"
             type="button"
             disabled={busy}
             onClick={async () => {
@@ -2345,15 +2353,15 @@ export function WishlistNotebook() {
         <div className="share-panel">
           <p className="share-label">Telegram Mini App</p>
           <code className="share-url">{sharePanel.telegramUrl}</code>
-          <div className="row-actions share-actions">
+          <div className="room-actions">
             <button
-              className="fill"
+              className="btn-primary"
               type="button"
               onClick={() => copyShareUrl(sharePanel.telegramUrl, 'Ссылка Telegram скопирована')}
             >
               Скопировать
             </button>
-            <button className="text-btn" type="button" onClick={() => setSharePanel(null)}>
+            <button className="btn-secondary" type="button" onClick={() => setSharePanel(null)}>
               Закрыть
             </button>
           </div>
@@ -2362,11 +2370,9 @@ export function WishlistNotebook() {
       )}
 
       {(detail.items || []).length === 0 ? (
-        <p className="note" style={{ marginTop: 20 }}>
-          Позиций пока нет — добавь первую.
-        </p>
+        <p className="empty-block">Позиций пока нет — добавь первую.</p>
       ) : (
-        <div style={{ marginTop: 16 }}>
+        <div className="notebook-list">
           {detail.items.map((gift) => (
             <div className="notebook-item" key={gift.id}>
               <div className="frame" style={{ width: 56, height: 56, flexShrink: 0 }}>
@@ -2376,8 +2382,8 @@ export function WishlistNotebook() {
                 <strong>{gift.title}</strong>
                 {gift.sku && <p className="demo-hint">арт. {gift.sku}</p>}
                 {gift.url && (
-                  <a className="buy" href={gift.url} target="_blank" rel="noreferrer">
-                    ссылка
+                  <a className="btn-chip" href={gift.url} target="_blank" rel="noreferrer">
+                    Ссылка
                   </a>
                 )}
               </div>
@@ -2409,57 +2415,74 @@ export function WishlistNotebook() {
 
       {err && <p className="err">{err}</p>}
 
-      {itemModal && (
-        <div className="modal-sheet" role="dialog" aria-modal="true">
-          <div className="modal-card">
-            <h2>{itemModal.mode === 'edit' ? 'Редактировать' : 'Новая позиция'}</h2>
-            <form className="stack-form" onSubmit={saveItem}>
-              <label className="line">
-                <span>название</span>
-                <input value={itemTitle} onChange={(e) => setItemTitle(e.target.value)} autoFocus />
-              </label>
-              <label className="line">
-                <span>ссылка</span>
-                <input
-                  value={itemUrl}
-                  onChange={(e) => setItemUrl(e.target.value)}
-                  placeholder="https://"
-                  inputMode="url"
-                />
-              </label>
-              <label className="line">
-                <span>артикул</span>
-                <input value={itemSku} onChange={(e) => setItemSku(e.target.value)} placeholder="опционально" />
-              </label>
-              <div className="photo-row">
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept="image/*"
-                  hidden
-                  onChange={(e) => {
-                    const next = e.target.files?.[0]
-                    setFile(next || null)
-                    setFileName(next?.name || '')
-                  }}
-                />
-                <button className="text-btn" type="button" onClick={() => fileRef.current?.click()}>
-                  {fileName || 'Прикрепить фото'}
-                </button>
-              </div>
-              <div className="row-actions">
-                <button className="fill" type="submit" disabled={busy}>
-                  {busy ? 'Сохраняю…' : 'Сохранить'}
-                </button>
-                <button className="text-btn" type="button" onClick={() => setItemModal(null)}>
-                  Отмена
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-    </section>
+      {itemModal &&
+        createPortal(
+          <div
+            className="modal-sheet"
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setItemModal(null)
+            }}
+          >
+            <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+              <button
+                className="modal-close"
+                type="button"
+                aria-label="закрыть"
+                onClick={() => setItemModal(null)}
+              >
+                ×
+              </button>
+              <h2>{itemModal.mode === 'edit' ? 'Редактировать' : 'Новая позиция'}</h2>
+              <form className="stack-form" onSubmit={saveItem}>
+                <label className="field-r">
+                  <span>название</span>
+                  <input value={itemTitle} onChange={(e) => setItemTitle(e.target.value)} autoFocus />
+                </label>
+                <label className="field-r">
+                  <span>ссылка</span>
+                  <input
+                    value={itemUrl}
+                    onChange={(e) => setItemUrl(e.target.value)}
+                    placeholder="https://"
+                    inputMode="url"
+                  />
+                </label>
+                <label className="field-r">
+                  <span>артикул</span>
+                  <input value={itemSku} onChange={(e) => setItemSku(e.target.value)} placeholder="опционально" />
+                </label>
+                <div className="photo-row">
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    accept="image/*"
+                    hidden
+                    onChange={(e) => {
+                      const next = e.target.files?.[0]
+                      setFile(next || null)
+                      setFileName(next?.name || '')
+                    }}
+                  />
+                  <button className="btn-secondary" type="button" onClick={() => fileRef.current?.click()}>
+                    {fileName || 'Прикрепить фото'}
+                  </button>
+                </div>
+                <div className="modal-actions">
+                  <button className="btn-primary" type="submit" disabled={busy}>
+                    {busy ? 'Сохраняю…' : 'Сохранить'}
+                  </button>
+                  <button className="btn-secondary" type="button" onClick={() => setItemModal(null)}>
+                    Отмена
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body,
+        )}
+    </div>
   )
 }
 

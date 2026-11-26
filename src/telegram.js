@@ -152,6 +152,25 @@ export function applySafeArea() {
   }
 }
 
+/** Telegram profile photo URL from Mini App (not always present). */
+export function getTelegramPhotoUrl() {
+  try {
+    const fromWebApp = window.Telegram?.WebApp?.initDataUnsafe?.user?.photo_url
+    if (fromWebApp) return String(fromWebApp)
+  } catch {
+    /* ignore */
+  }
+  try {
+    const lp = retrieveLaunchParams()
+    const user = lp?.tgWebAppData?.user || lp?.initDataUnsafe?.user
+    const url = user?.photoUrl || user?.photo_url
+    if (url) return String(url)
+  } catch {
+    /* ignore */
+  }
+  return ''
+}
+
 export function haptic(type = 'light') {
   try {
     if (type === 'success' && can(hapticFeedback.notificationOccurred)) {
